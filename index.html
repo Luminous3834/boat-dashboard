@@ -1,0 +1,627 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ระบบตรวจติดตามคุณภาพน้ำแบบออนไลน์</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mqtt/4.3.7/mqtt.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  :root {
+    --bg: #0d1117;
+    --surface: #161b22;
+    --surface2: #1c2128;
+    --surface3: #21262d;
+    --border: rgba(255,255,255,0.08);
+    --text: #e6edf3;
+    --text-muted: #7d8590;
+    --ph-color: #58d4f5;
+    --do-color: #3fb950;
+    --ec-color: #d29922;
+    --tds-color: #bc8cff;
+    --temp-color: #56d364;
+    --radius: 12px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    font-size: 14px;
+    min-height: 100vh;
+  }
+
+  /* HEADER */
+  .header {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 0 20px;
+    height: 56px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: sticky; top: 0; z-index: 100;
+  }
+  .header-left { display: flex; align-items: center; gap: 16px; }
+  .logo { display: flex; align-items: center; gap: 8px; }
+  .logo-icon { width: 28px; height: 28px; background: linear-gradient(135deg,#58d4f5,#3fb950); border-radius: 6px; display:flex;align-items:center;justify-content:center; }
+  .logo-icon svg { width:16px;height:16px; }
+  .logo-text { font-size: 13px; font-weight: 600; color: var(--text); }
+  .logo-sub { font-size: 11px; color: var(--text-muted); }
+  .header-title h1 { font-size: 15px; font-weight: 600; }
+  .header-title p { font-size: 11px; color: var(--text-muted); }
+  .header-right { display: flex; align-items: center; gap: 16px; }
+  .live-badge {
+    display: flex; align-items: center; gap: 6px;
+    background: rgba(63,185,80,0.12);
+    border: 1px solid rgba(63,185,80,0.3);
+    border-radius: 20px; padding: 3px 10px;
+    font-size: 12px; font-weight: 600; color: #3fb950;
+  }
+  .live-dot { width:7px;height:7px;border-radius:50%;background:#3fb950;animation:pulse 1.5s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1;} 50%{opacity:0.4;} }
+  .header-stat { text-align: center; }
+  .header-stat .val { font-size: 14px; font-weight: 600; }
+  .header-stat .lbl { font-size: 10px; color: var(--text-muted); }
+  #header-time { font-size: 16px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  #header-date { font-size: 10px; color: var(--text-muted); }
+
+  /* LAYOUT */
+  .layout { display: flex; height: calc(100vh - 56px); }
+
+  /* SIDEBAR */
+  .sidebar {
+    width: 200px; min-width: 200px;
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    padding: 16px 0;
+    display: flex; flex-direction: column;
+  }
+  .nav-item {
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 20px; font-size: 13px; cursor: pointer;
+    color: var(--text-muted); transition: all .15s;
+    border-left: 3px solid transparent;
+  }
+  .nav-item:hover { color: var(--text); background: rgba(255,255,255,0.04); }
+  .nav-item.active {
+    color: var(--text); background: rgba(88,212,245,0.08);
+    border-left-color: var(--ph-color); font-weight: 600;
+  }
+  .nav-icon { font-size: 16px; width: 18px; text-align: center; }
+  .sidebar-footer {
+    margin-top: auto; padding: 16px 20px;
+    border-top: 1px solid var(--border);
+  }
+  .boat-status { font-size: 11px; }
+  .boat-status .name { font-weight: 600; font-size: 12px; margin-bottom: 6px; color: var(--text); }
+  .status-row { display: flex; align-items: center; justify-content: space-between; margin: 3px 0; color: var(--text-muted); }
+  .status-row .val { font-weight: 600; color: var(--text); }
+  .online-dot { width:7px;height:7px;border-radius:50%;background:#3fb950;display:inline-block;margin-right:4px; }
+  .battery-bar {
+    height: 6px; background: var(--surface3); border-radius: 3px; margin: 2px 0; overflow: hidden;
+  }
+  .battery-fill { height: 100%; background: #3fb950; border-radius: 3px; width: 87%; transition: width .5s; }
+
+  /* MAIN */
+  .main { flex: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+
+  /* TOP INFO BAR */
+  .info-bar {
+    display: grid; grid-template-columns: 1fr auto auto;
+    gap: 10px; align-items: stretch;
+  }
+  .info-card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 10px 14px;
+    display: flex; align-items: center; gap: 10px;
+  }
+  .station-select {
+    flex:1; background: transparent; border: none;
+    color: var(--text); font-size: 13px; font-weight: 600; cursor: pointer;
+    outline: none; appearance: none;
+  }
+  .info-icon { font-size: 20px; opacity: .6; }
+  .info-val { font-size: 14px; font-weight: 700; }
+  .info-lbl { font-size: 10px; color: var(--text-muted); }
+  .status-online { color: #3fb950; font-weight: 700; font-size: 13px; }
+
+  /* SENSOR GRID */
+  .sensor-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 10px;
+  }
+  .sensor-card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 12px 10px;
+    display: flex; flex-direction: column; align-items: center;
+    position: relative; overflow: hidden;
+    transition: border-color .2s;
+  }
+  .sensor-card:hover { border-color: rgba(255,255,255,0.18); }
+  .sensor-card::before {
+    content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px;
+  }
+  .sensor-card.ph::before { background: var(--ph-color); }
+  .sensor-card.do::before { background: var(--do-color); }
+  .sensor-card.ec::before { background: var(--ec-color); }
+  .sensor-card.tds::before { background: var(--tds-color); }
+
+  .sensor-name { font-size: 13px; font-weight: 700; margin-bottom: 1px; }
+  .sensor-desc { font-size: 9px; color: var(--text-muted); margin-bottom: 8px; text-align: center; }
+  .gauge-wrap { position: relative; width: 80px; height: 48px; margin-bottom: 4px; }
+  .gauge-svg { width: 80px; height: 48px; }
+  .gauge-value {
+    position: absolute; bottom: 0; left: 0; right: 0;
+    text-align: center; font-size: 16px; font-weight: 700;
+  }
+  .sensor-unit { font-size: 10px; color: var(--text-muted); margin-bottom: 6px; }
+  .status-badge {
+    font-size: 10px; font-weight: 600; padding: 2px 8px;
+    border-radius: 10px; border: 1px solid;
+  }
+  .badge-ok { color: #3fb950; border-color: rgba(63,185,80,.4); background: rgba(63,185,80,.1); }
+  .badge-good { color: #58d4f5; border-color: rgba(88,212,245,.4); background: rgba(88,212,245,.1); }
+  .badge-great { color: #d29922; border-color: rgba(210,153,34,.4); background: rgba(210,153,34,.1); }
+  .badge-warn { color: #ffa657; border-color: rgba(255,166,87,.4); background: rgba(255,166,87,.1); }
+  .badge-danger { color: #ff7b72; border-color: rgba(255,123,114,.4); background: rgba(255,123,114,.1); }
+  .sensor-range { font-size: 9px; color: var(--text-muted); margin-top: 3px; text-align: center; }
+
+  /* BOTTOM SECTION */
+  .bottom-grid { display: grid; grid-template-columns: 2fr 1fr; gap: 12px; flex: 1; }
+  .panel {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 14px;
+    display: flex; flex-direction: column;
+  }
+  .panel-header {
+    display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;
+  }
+  .panel-title { font-size: 13px; font-weight: 600; }
+  .time-tabs { display: flex; gap: 4px; }
+  .time-tab {
+    font-size: 10px; padding: 3px 8px; border-radius: 6px; cursor: pointer;
+    background: transparent; border: 1px solid transparent; color: var(--text-muted);
+    transition: all .15s;
+  }
+  .time-tab.active { background: rgba(88,212,245,.15); border-color: rgba(88,212,245,.4); color: var(--ph-color); }
+  .chart-container { flex: 1; position: relative; min-height: 160px; }
+
+  /* ALERTS */
+  .alert-list { display: flex; flex-direction: column; gap: 6px; overflow-y: auto; max-height: 220px; }
+  .alert-item {
+    display: flex; align-items: flex-start; gap: 8px;
+    padding: 8px 10px; border-radius: 8px;
+    background: var(--surface2); border: 1px solid var(--border);
+  }
+  .alert-icon { font-size: 14px; margin-top: 1px; }
+  .alert-content { flex: 1; }
+  .alert-title { font-size: 11px; font-weight: 600; }
+  .alert-desc { font-size: 10px; color: var(--text-muted); margin-top: 1px; }
+  .alert-time { font-size: 10px; color: var(--text-muted); white-space: nowrap; }
+  .alert-ok { border-color: rgba(63,185,80,.25); }
+  .alert-warn { border-color: rgba(255,166,87,.25); }
+  .alert-danger { border-color: rgba(255,123,114,.25); }
+
+  /* MQTT STATUS */
+  .mqtt-status {
+    font-size: 10px; color: var(--text-muted);
+    padding: 4px 0; display: flex; align-items: center; gap: 4px;
+  }
+  .mqtt-dot { width: 6px; height: 6px; border-radius: 50%; background: #ff7b72; }
+  .mqtt-dot.connected { background: #3fb950; }
+
+  /* CONN NOTICE */
+  .conn-notice {
+    position: fixed; bottom: 16px; right: 16px;
+    background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 10px; padding: 10px 14px; font-size: 11px;
+    max-width: 260px; z-index: 200; display: none;
+  }
+  .conn-notice.show { display: block; }
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<header class="header">
+  <div class="header-left">
+    <div class="logo">
+      <div class="logo-icon">
+        <svg viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M2 10 Q8 6 14 10" stroke="white" stroke-width="1.5" stroke-linecap="round"/>
+          <path d="M1 12 Q8 8 15 12" stroke="white" stroke-width="1.5" stroke-linecap="round"/>
+          <rect x="5" y="4" width="6" height="5" rx="1" fill="white" opacity=".8"/>
+          <path d="M8 4 L8 2 M6 2 L10 2" stroke="white" stroke-width="1.2" stroke-linecap="round"/>
+        </svg>
+      </div>
+      <div>
+        <div class="logo-text">Node-RED</div>
+        <div class="logo-sub">Water Quality</div>
+      </div>
+    </div>
+    <div class="header-title">
+      <h1>ระบบตรวจติดตามคุณภาพน้ำแบบออนไลน์</h1>
+      <p>Water Quality Monitoring System — เรืออัจฉริยะ RMUTL</p>
+    </div>
+  </div>
+  <div class="header-right">
+    <div class="live-badge"><span class="live-dot"></span>LIVE</div>
+    <div class="header-stat">
+      <div id="header-date"></div>
+      <div id="header-time"></div>
+    </div>
+    <div class="header-stat">
+      <div class="status-online">● ออนไลน์</div>
+      <div class="lbl">สถานะระบบ</div>
+    </div>
+  </div>
+</header>
+
+<div class="layout">
+  <!-- SIDEBAR -->
+  <nav class="sidebar">
+    <div class="nav-item active"><span class="nav-icon">📊</span> ภาพรวม</div>
+    <div class="sidebar-footer">
+      <div class="boat-status">
+        <div class="name">🚢 เรืออัจฉริยะ</div>
+        <div class="status-row"><span>สถานะ</span><span class="val"><span class="online-dot"></span>ทำงาน</span></div>
+        <div class="status-row"><span>สัญญาณ</span><span class="val">📶 ดี</span></div>
+        <div class="status-row" style="margin-top:6px;"><span>แบตเตอรี่ 87%</span></div>
+        <div class="battery-bar"><div class="battery-fill"></div></div>
+        <div class="mqtt-status"><span class="mqtt-dot" id="mqtt-dot"></span><span id="mqtt-label">กำลังเชื่อมต่อ...</span></div>
+      </div>
+    </div>
+  </nav>
+
+  <!-- MAIN -->
+  <main class="main">
+
+    <!-- INFO BAR -->
+    <div class="info-bar">
+      <div class="info-card">
+        <span style="font-size:18px">🏠</span>
+        <div>
+          <div style="font-size:10px;color:var(--text-muted);">สถานี / พื้นที่</div>
+          <select class="station-select">
+            <option>แม่น้ำกก — จุดเก็บตัวอย่างที่ 1</option>
+            <option>แม่น้ำกก — จุดเก็บตัวอย่างที่ 2</option>
+            <option>บึงหนองหาน</option>
+          </select>
+        </div>
+      </div>
+      <div class="info-card">
+        <span style="font-size:18px">🕐</span>
+        <div>
+          <div class="info-lbl">เวลาอัปเดตล่าสุด</div>
+          <div class="info-val" id="last-update">—</div>
+        </div>
+      </div>
+      <div class="info-card">
+        <span style="font-size:18px">✅</span>
+        <div>
+          <div class="info-lbl">สถานะระบบ</div>
+          <div class="status-online">ออนไลน์</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SENSOR CARDS -->
+    <div class="sensor-grid">
+
+      <!-- pH -->
+      <div class="sensor-card ph">
+        <div class="sensor-name" style="color:var(--ph-color)">pH</div>
+        <div class="sensor-desc">ความเป็นกรด-ด่าง</div>
+        <div class="gauge-wrap">
+          <svg class="gauge-svg" viewBox="0 0 80 48">
+            <path d="M8 44 A32 32 0 0 1 72 44" fill="none" stroke="rgba(255,255,255,.08)" stroke-width="7" stroke-linecap="round"/>
+            <path id="ph-arc" d="M8 44 A32 32 0 0 1 72 44" fill="none" stroke="var(--ph-color)" stroke-width="7" stroke-linecap="round" stroke-dasharray="100.5" stroke-dashoffset="47.5"/>
+          </svg>
+          <div class="gauge-value" id="ph-val">—</div>
+        </div>
+        <div class="sensor-unit">pH</div>
+        <div class="status-badge badge-ok" id="ph-badge">ปกติ</div>
+        <div class="sensor-range">(6.5 – 8.5)</div>
+      </div>
+
+      <!-- DO -->
+      <div class="sensor-card do">
+        <div class="sensor-name" style="color:var(--do-color)">DO</div>
+        <div class="sensor-desc">ออกซิเจนละลายน้ำ</div>
+        <div class="gauge-wrap">
+          <svg class="gauge-svg" viewBox="0 0 80 48">
+            <path d="M8 44 A32 32 0 0 1 72 44" fill="none" stroke="rgba(255,255,255,.08)" stroke-width="7" stroke-linecap="round"/>
+            <path id="do-arc" d="M8 44 A32 32 0 0 1 72 44" fill="none" stroke="var(--do-color)" stroke-width="7" stroke-linecap="round" stroke-dasharray="100.5" stroke-dashoffset="69.5"/>
+          </svg>
+          <div class="gauge-value" id="do-val">—</div>
+        </div>
+        <div class="sensor-unit">mg/L</div>
+        <div class="status-badge badge-good" id="do-badge">ดี</div>
+        <div class="sensor-range">(&gt; 5 mg/L)</div>
+      </div>
+
+      <!-- EC -->
+      <div class="sensor-card ec">
+        <div class="sensor-name" style="color:var(--ec-color)">EC</div>
+        <div class="sensor-desc">การนำไฟฟ้า</div>
+        <div class="gauge-wrap">
+          <svg class="gauge-svg" viewBox="0 0 80 48">
+            <path d="M8 44 A32 32 0 0 1 72 44" fill="none" stroke="rgba(255,255,255,.08)" stroke-width="7" stroke-linecap="round"/>
+            <path id="ec-arc" d="M8 44 A32 32 0 0 1 72 44" fill="none" stroke="var(--ec-color)" stroke-width="7" stroke-linecap="round" stroke-dasharray="100.5" stroke-dashoffset="74.5"/>
+          </svg>
+          <div class="gauge-value" id="ec-val">—</div>
+        </div>
+        <div class="sensor-unit">µS/cm</div>
+        <div class="status-badge badge-ok" id="ec-badge">ปกติ</div>
+        <div class="sensor-range">(300–1500)</div>
+      </div>
+
+      <!-- TDS -->
+      <div class="sensor-card tds">
+        <div class="sensor-name" style="color:var(--tds-color)">TDS</div>
+        <div class="sensor-desc">ของแข็งละลายทั้งหมด</div>
+        <div class="gauge-wrap">
+          <svg class="gauge-svg" viewBox="0 0 80 48">
+            <path d="M8 44 A32 32 0 0 1 72 44" fill="none" stroke="rgba(255,255,255,.08)" stroke-width="7" stroke-linecap="round"/>
+            <path id="tds-arc" d="M8 44 A32 32 0 0 1 72 44" fill="none" stroke="var(--tds-color)" stroke-width="7" stroke-linecap="round" stroke-dasharray="100.5" stroke-dashoffset="75"/>
+          </svg>
+          <div class="gauge-value" id="tds-val">—</div>
+        </div>
+        <div class="sensor-unit">mg/L</div>
+        <div class="status-badge badge-ok" id="tds-badge">ปกติ</div>
+        <div class="sensor-range">(&lt; 500 mg/L)</div>
+      </div>
+
+    </div>
+
+    <!-- BOTTOM -->
+    <div class="bottom-grid">
+
+      <!-- CHART -->
+      <div class="panel">
+        <div class="panel-header">
+          <div class="panel-title">📈 กราฟแนวโน้มคุณภาพน้ำ (Trend)</div>
+          <div class="time-tabs">
+            <div class="time-tab active">1 ชั่วโมง</div>
+            <div class="time-tab">6 ชั่วโมง</div>
+            <div class="time-tab">24 ชั่วโมง</div>
+            <div class="time-tab">7 วัน</div>
+          </div>
+        </div>
+        <div class="chart-container">
+          <canvas id="trendChart"></canvas>
+        </div>
+      </div>
+
+      <!-- ALERTS -->
+      <div class="panel">
+        <div class="panel-header">
+          <div class="panel-title">🔔 การแจ้งเตือนล่าสุด</div>
+          <span style="font-size:11px;color:var(--ph-color);cursor:pointer">ดูทั้งหมด</span>
+        </div>
+        <div class="alert-list" id="alert-list">
+          <div class="alert-item alert-ok">
+            <div class="alert-icon">✅</div>
+            <div class="alert-content">
+              <div class="alert-title">คุณภาพน้ำปกติ</div>
+              <div class="alert-desc">ทุกค่าพารามิเตอร์อยู่ในเกณฑ์ปกติ</div>
+            </div>
+            <div class="alert-time" id="alert-time-1">—</div>
+          </div>
+          <div class="alert-item alert-ok">
+            <div class="alert-icon">✅</div>
+            <div class="alert-content">
+              <div class="alert-title">บันทึกข้อมูลสำเร็จ</div>
+              <div class="alert-desc">บันทึกข้อมูลเรียบร้อย</div>
+            </div>
+            <div class="alert-time" id="alert-time-3">—</div>
+          </div>
+          <div class="alert-item alert-danger">
+            <div class="alert-icon">🚨</div>
+            <div class="alert-content">
+              <div class="alert-title">เชื่อมต่อ MQTT</div>
+              <div class="alert-desc" id="mqtt-alert-desc">กำลังเชื่อมต่อ broker...</div>
+            </div>
+            <div class="alert-time" id="alert-time-4">—</div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </main>
+</div>
+
+<script>
+// ===== CLOCK =====
+function updateClock() {
+  const now = new Date();
+  const h = String(now.getHours()).padStart(2,'0');
+  const m = String(now.getMinutes()).padStart(2,'0');
+  const s = String(now.getSeconds()).padStart(2,'0');
+  const timeStr = `${h}:${m}:${s}`;
+  document.getElementById('header-time').textContent = timeStr;
+  document.getElementById('last-update').textContent = `${h}:${m}:${s}`;
+
+  const days = ['อา','จ','อ','พ','พฤ','ศ','ส'];
+  const months = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
+  document.getElementById('header-date').textContent = `${now.getDate()} ${months[now.getMonth()]} ${now.getFullYear()+543}`;
+
+  const t1 = new Date(now - 60*60000);
+  const t2 = new Date(now - 90*60000);
+  const fmt = d => `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+  document.getElementById('alert-time-1').textContent = fmt(now);
+  document.getElementById('alert-time-3').textContent = fmt(t1);
+  document.getElementById('alert-time-4').textContent = fmt(t2);
+}
+setInterval(updateClock, 1000);
+updateClock();
+
+// ===== CHART =====
+const MAX_POINTS = 30;
+const trendData = {
+  labels: [],
+  ph: [], tds: []
+};
+
+function genLabel() {
+  const now = new Date();
+  return `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}:${String(now.getSeconds()).padStart(2,'0')}`;
+}
+
+// Seed with dummy data
+for (let i = MAX_POINTS; i >= 0; i--) {
+  trendData.labels.push('');
+  trendData.ph.push((7.3 + (Math.random()-.5)*.4).toFixed(2));
+  trendData.tds.push((255 + (Math.random()-.5)*20).toFixed(0));
+}
+
+const ctx = document.getElementById('trendChart').getContext('2d');
+const trendChart = new Chart(ctx, {
+  type: 'line',
+  data: {
+    labels: trendData.labels,
+    datasets: [
+      { label: 'pH', data: trendData.ph, borderColor: '#58d4f5', backgroundColor: 'transparent', tension: 0.4, pointRadius: 0, borderWidth: 1.5 },
+      { label: 'TDS (mg/L)/100', data: trendData.tds.map(v=>v/100), borderColor: '#bc8cff', backgroundColor: 'transparent', tension: 0.4, pointRadius: 0, borderWidth: 1.5 },
+    ]
+  },
+  options: {
+    responsive: true, maintainAspectRatio: false,
+    animation: { duration: 300 },
+    plugins: {
+      legend: { labels: { color: '#7d8590', font: { size: 10 }, boxWidth: 20, padding: 8 } }
+    },
+    scales: {
+      x: { ticks: { display: false }, grid: { color: 'rgba(255,255,255,.04)' } },
+      y: { ticks: { color: '#7d8590', font: { size: 10 } }, grid: { color: 'rgba(255,255,255,.04)' } }
+    }
+  }
+});
+
+// ===== GAUGE =====
+function setGauge(id, value, min, max) {
+  const arc = document.getElementById(id);
+  if (!arc) return;
+  const pct = Math.max(0, Math.min(1, (value - min) / (max - min)));
+  const total = 100.5;
+  arc.style.strokeDashoffset = total * (1 - pct);
+}
+
+function updateSensor(key, value) {
+  const configs = {
+    ph:    { el: 'ph-val', arc: 'ph-arc', badge: 'ph-badge', min: 0, max: 14,
+             check: v => v>=6.5&&v<=8.5 ? ['ปกติ','badge-ok'] : v<6.5 ? ['กรด','badge-warn'] : ['ด่าง','badge-warn'] },
+    do:    { el: 'do-val', arc: 'do-arc', badge: 'do-badge', min: 0, max: 20,
+             check: v => v>=5 ? ['ดี','badge-good'] : ['ต่ำ','badge-warn'] },
+    ec:    { el: 'ec-val', arc: 'ec-arc', badge: 'ec-badge', min: 0, max: 2000,
+             check: v => v>=300&&v<=1500 ? ['ปกติ','badge-ok'] : ['ผิดปกติ','badge-warn'] },
+    tds:   { el: 'tds-val', arc: 'tds-arc', badge: 'tds-badge', min: 0, max: 1000,
+             check: v => v<500 ? ['ปกติ','badge-ok'] : ['สูง','badge-warn'] }
+  };
+
+  const cfg = configs[key];
+  if (!cfg) return;
+
+  const el = document.getElementById(cfg.el);
+  if (el) {
+    const num = parseFloat(value);
+    el.textContent = num < 1 ? num.toFixed(3) : num < 10 ? num.toFixed(1) : Math.round(num);
+  }
+  setGauge(cfg.arc, parseFloat(value), cfg.min, cfg.max);
+  const [label, cls] = cfg.check(parseFloat(value));
+  const badge = document.getElementById(cfg.badge);
+  if (badge) { badge.textContent = label; badge.className = 'status-badge ' + cls; }
+}
+
+function pushChartPoint(key, value) {
+  const num = parseFloat(value);
+  if (isNaN(num)) return;
+  const label = genLabel();
+  if (trendData.labels.length >= MAX_POINTS) {
+    trendData.labels.shift();
+    trendData.ph.shift(); trendData.tds.shift();
+    trendChart.data.datasets[0].data.shift();
+    trendChart.data.datasets[1].data.shift();
+  }
+  trendData.labels.push(label);
+  trendChart.data.labels = trendData.labels;
+  if (key === 'ph') { trendData.ph.push(num); trendChart.data.datasets[0].data = [...trendData.ph]; }
+  if (key === 'tds') { trendData.tds.push(num/100); trendChart.data.datasets[1].data = [...trendData.tds.map(v=>v/100)]; }
+  trendChart.update('none');
+}
+
+// ===== MQTT =====
+const BROKER = 'wss://broker.hivemq.com:8884/mqtt';
+const TOPICS = {
+  'boat/ph': 'ph',
+  'boat/tds': 'tds',
+  'boat/do': 'do',
+  'boat/ec': 'ec'
+};
+
+const dot = document.getElementById('mqtt-dot');
+const lbl = document.getElementById('mqtt-label');
+const alertDesc = document.getElementById('mqtt-alert-desc');
+
+try {
+  const clientId = 'dashboard_' + Math.random().toString(16).substr(2, 8);
+  const mqttClient = mqtt.connect(BROKER, { clientId, clean: true });
+
+  mqttClient.on('connect', () => {
+    dot.classList.add('connected');
+    lbl.textContent = 'เชื่อมต่อ MQTT แล้ว';
+    alertDesc.textContent = 'เชื่อมต่อ HiveMQ สำเร็จ';
+    document.getElementById('alert-time-4').textContent = genLabel().substr(0,5);
+    Object.keys(TOPICS).forEach(t => mqttClient.subscribe(t));
+  });
+
+  mqttClient.on('message', (topic, message) => {
+    const key = TOPICS[topic];
+    const val = message.toString();
+    if (key) {
+      demoMode = false;
+      updateSensor(key, val);
+      pushChartPoint(key, val);
+    }
+  });
+
+  mqttClient.on('error', () => {
+    dot.classList.remove('connected');
+    lbl.textContent = 'ไม่สามารถเชื่อมต่อได้';
+  });
+
+  mqttClient.on('close', () => {
+    dot.classList.remove('connected');
+    lbl.textContent = 'ขาดการเชื่อมต่อ';
+  });
+} catch(e) {
+  lbl.textContent = 'โหลด MQTT ไม่ได้';
+}
+
+// Simulate data if no real MQTT ever arrives (demo mode)
+let demoMode = true;
+setTimeout(() => {
+  setInterval(() => {
+    if (!demoMode) return;
+    const demos = {
+      ph: (7.2 + Math.random()*.6).toFixed(2),
+      tds: (240 + Math.random()*30).toFixed(0),
+      do: (6 + Math.random()*2).toFixed(1),
+      ec: (500 + Math.random()*50).toFixed(0)
+    };
+    Object.entries(demos).forEach(([k,v]) => { updateSensor(k,v); pushChartPoint(k,v); });
+  }, 2000);
+}, 4000);
+
+// time tabs
+document.querySelectorAll('.time-tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.time-tab').forEach(t => t.classList.remove('active'));
+    tab.classList.add('active');
+  });
+});
+</script>
+</body>
+</html>
