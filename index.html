@@ -101,7 +101,7 @@
   .battery-bar {
     height: 6px; background: var(--surface3); border-radius: 3px; margin: 2px 0; overflow: hidden;
   }
-  .battery-fill { height: 100%; background: #3fb950; border-radius: 3px; width: 87%; transition: width .5s; }
+  .battery-fill { height: 100%; background: #3fb950; border-radius: 3px; width: 0%; transition: width .5s, background .3s; }
 
   /* MAIN */
   .main { flex: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 12px; }
@@ -220,6 +220,29 @@
     max-width: 260px; z-index: 200; display: none;
   }
   .conn-notice.show { display: block; }
+
+  /* PUMP CONTROL */
+  .pump-control {
+    position: fixed; bottom: 16px; right: 16px; z-index: 150;
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 12px 14px;
+    display: flex; flex-direction: column; gap: 8px;
+    box-shadow: 0 4px 16px rgba(0,0,0,.35);
+    min-width: 190px;
+  }
+  .pump-control-title { font-size: 11px; font-weight: 600; color: var(--text-muted); margin-bottom: 2px; }
+  .pump-btn {
+    display: flex; align-items: center; justify-content: center; gap: 6px;
+    padding: 10px 12px; border-radius: 8px; border: 1px solid;
+    font-size: 13px; font-weight: 600; cursor: pointer;
+    background: transparent; transition: all .15s; font-family: inherit;
+  }
+  .pump-btn:disabled { cursor: not-allowed; opacity: .55; }
+  .pump-btn-intake { color: var(--ph-color); border-color: rgba(88,212,245,.4); background: rgba(88,212,245,.08); }
+  .pump-btn-intake:not(:disabled):hover { background: rgba(88,212,245,.18); }
+  .pump-btn-discharge { color: var(--do-color); border-color: rgba(63,185,80,.4); background: rgba(63,185,80,.08); }
+  .pump-btn-discharge:not(:disabled):hover { background: rgba(63,185,80,.18); }
+  .pump-btn.running { animation: pulse 1s infinite; }
 </style>
 </head>
 <body>
@@ -268,8 +291,8 @@
         <div class="name">🚢 เรืออัจฉริยะ</div>
         <div class="status-row"><span>สถานะ</span><span class="val"><span class="online-dot"></span>ทำงาน</span></div>
         <div class="status-row"><span>สัญญาณ</span><span class="val">📶 ดี</span></div>
-        <div class="status-row" style="margin-top:6px;"><span>แบตเตอรี่ 87%</span></div>
-        <div class="battery-bar"><div class="battery-fill"></div></div>
+        <div class="status-row" style="margin-top:6px;"><span>แบตเตอรี่</span><span class="val" id="battery-label">—</span></div>
+        <div class="battery-bar"><div class="battery-fill" id="battery-fill"></div></div>
         <div class="mqtt-status"><span class="mqtt-dot" id="mqtt-dot"></span><span id="mqtt-label">กำลังเชื่อมต่อ...</span></div>
       </div>
     </div>
@@ -433,6 +456,17 @@
   </main>
 </div>
 
+<!-- PUMP CONTROL (ขวาล่าง) -->
+<div class="pump-control">
+  <div class="pump-control-title">🔧 ควบคุมปั๊มเก็บตัวอย่างน้ำ</div>
+  <button class="pump-btn pump-btn-intake" id="btn-intake" onclick="pumpCommand('intake')">
+    ⬇️ ดูดน้ำเข้า (5 วิ)
+  </button>
+  <button class="pump-btn pump-btn-discharge" id="btn-discharge" onclick="pumpCommand('discharge')">
+    ⬆️ ดูดน้ำออก (5 วิ)
+  </button>
+</div>
+
 <script>
 // ===== CLOCK =====
 function updateClock() {
@@ -558,16 +592,65 @@ const TOPICS = {
   'boat/ph': 'ph',
   'boat/tds': 'tds',
   'boat/do': 'do',
-  'boat/ec': 'ec'
+  'boat/ec': 'ec',
+  'boat/battery': 'battery'
 };
+
+// ===== BATTERY (18650 single-cell Li-ion) =====
+// Rest-voltage -> % curve (non-linear discharge curve, more accurate than linear 3.0-4.2V mapping)
+const BATTERY_CURVE = [
+  [3.00, 0], [3.45, 5], [3.68, 10], [3.74, 20], [3.77, 30],
+  [3.79, 40], [3.82, 50], [3.87, 60], [3.92, 70], [3.98, 80],
+  [4.06, 90], [4.20, 100]
+];
+function voltageToPercent(v) {
+  if (v <= BATTERY_CURVE[0][0]) return 0;
+  if (v >= BATTERY_CURVE[BATTERY_CURVE.length - 1][0]) return 100;
+  for (let i = 0; i < BATTERY_CURVE.length - 1; i++) {
+    const [v1, p1] = BATTERY_CURVE[i];
+    const [v2, p2] = BATTERY_CURVE[i + 1];
+    if (v >= v1 && v <= v2) return p1 + (p2 - p1) * (v - v1) / (v2 - v1);
+  }
+  return 0;
+}
+
+// Accepts either a plain voltage string ("3.85") or JSON {"voltage":3.85,"percent":78}
+// published by the boat's firmware (e.g. from AT+CBC on the A7670E modem, or ADC on GPIO35).
+function updateBattery(payload) {
+  let voltage = NaN, percent = NaN;
+  try {
+    const obj = JSON.parse(payload);
+    voltage = parseFloat(obj.voltage);
+    percent = obj.percent !== undefined ? parseFloat(obj.percent) : NaN;
+  } catch (e) {
+    voltage = parseFloat(payload);
+  }
+  if (isNaN(percent) && !isNaN(voltage)) percent = voltageToPercent(voltage);
+  if (isNaN(percent)) return;
+  percent = Math.max(0, Math.min(100, percent));
+
+  const label = document.getElementById('battery-label');
+  const fill = document.getElementById('battery-fill');
+  if (label) {
+    label.textContent = !isNaN(voltage)
+      ? `${percent.toFixed(0)}% (${voltage.toFixed(2)}V)`
+      : `${percent.toFixed(0)}%`;
+  }
+  if (fill) {
+    fill.style.width = percent + '%';
+    fill.style.background = percent > 50 ? '#3fb950' : percent > 20 ? '#ffa657' : '#ff7b72';
+  }
+}
 
 const dot = document.getElementById('mqtt-dot');
 const lbl = document.getElementById('mqtt-label');
 const alertDesc = document.getElementById('mqtt-alert-desc');
 
+let mqttClient = null; // ยกออกมานอก try เพื่อให้ปุ่มปั๊มเรียกใช้ publish() ได้
+
 try {
   const clientId = 'dashboard_' + Math.random().toString(16).substr(2, 8);
-  const mqttClient = mqtt.connect(BROKER, { clientId, clean: true });
+  mqttClient = mqtt.connect(BROKER, { clientId, clean: true });
 
   mqttClient.on('connect', () => {
     dot.classList.add('connected');
@@ -580,7 +663,10 @@ try {
   mqttClient.on('message', (topic, message) => {
     const key = TOPICS[topic];
     const val = message.toString();
-    if (key) {
+    if (key === 'battery') {
+      batteryDemoMode = false;
+      updateBattery(val);
+    } else if (key) {
       demoMode = false;
       updateSensor(key, val);
       pushChartPoint(key, val);
@@ -602,18 +688,85 @@ try {
 
 // Simulate data if no real MQTT ever arrives (demo mode)
 let demoMode = true;
+let batteryDemoMode = true;
 setTimeout(() => {
   setInterval(() => {
-    if (!demoMode) return;
-    const demos = {
-      ph: (7.2 + Math.random()*.6).toFixed(2),
-      tds: (240 + Math.random()*30).toFixed(0),
-      do: (6 + Math.random()*2).toFixed(1),
-      ec: (500 + Math.random()*50).toFixed(0)
-    };
-    Object.entries(demos).forEach(([k,v]) => { updateSensor(k,v); pushChartPoint(k,v); });
+    if (demoMode) {
+      const demos = {
+        ph: (7.2 + Math.random()*.6).toFixed(2),
+        tds: (240 + Math.random()*30).toFixed(0),
+        do: (6 + Math.random()*2).toFixed(1),
+        ec: (500 + Math.random()*50).toFixed(0)
+      };
+      Object.entries(demos).forEach(([k,v]) => { updateSensor(k,v); pushChartPoint(k,v); });
+    }
+    if (batteryDemoMode) {
+      const label = document.getElementById('battery-label');
+      if (label) label.textContent = 'รอข้อมูลจากบอร์ดจริง...';
+    }
   }, 2000);
 }, 4000);
+
+// ===== PUMP CONTROL =====
+const PUMP_DURATION = 5; // วินาที (ต้องตรงกับที่ตั้งไว้ในโค้ด ESP32/Node-RED)
+const PUMP_TOPICS = { intake: 'boat/pump/intake', discharge: 'boat/pump/discharge' };
+const PUMP_LABELS = { intake: '⬇️ ดูดน้ำเข้า', discharge: '⬆️ ดูดน้ำออก' };
+let pumpBusy = false;
+
+function addPumpAlert(text, ok = true) {
+  const list = document.getElementById('alert-list');
+  if (!list) return;
+  const item = document.createElement('div');
+  item.className = 'alert-item ' + (ok ? 'alert-ok' : 'alert-warn');
+  const now = new Date();
+  const time = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+  item.innerHTML = `
+    <div class="alert-icon">${ok ? '✅' : '⚠️'}</div>
+    <div class="alert-content">
+      <div class="alert-title">${text}</div>
+      <div class="alert-desc">สั่งงานผ่านแดชบอร์ด</div>
+    </div>
+    <div class="alert-time">${time}</div>`;
+  list.prepend(item);
+}
+
+function pumpCommand(action) {
+  if (pumpBusy) return; // กันกดซ้ำระหว่างปั๊มทำงานอยู่
+  if (!mqttClient || !mqttClient.connected) {
+    addPumpAlert('สั่งปั๊มไม่สำเร็จ (ยังไม่เชื่อมต่อ MQTT)', false);
+    return;
+  }
+
+  pumpBusy = true;
+  const btnIntake = document.getElementById('btn-intake');
+  const btnDischarge = document.getElementById('btn-discharge');
+  const activeBtn = document.getElementById('btn-' + action);
+
+  btnIntake.disabled = true;
+  btnDischarge.disabled = true;
+  activeBtn.classList.add('running');
+
+  // ส่งคำสั่งเริ่มทำงานไปที่ Node-RED ผ่าน MQTT
+  mqttClient.publish(PUMP_TOPICS[action], '1');
+  addPumpAlert(`${PUMP_LABELS[action]} — เริ่มทำงาน`);
+
+  let remaining = PUMP_DURATION;
+  activeBtn.textContent = `${PUMP_LABELS[action]} (${remaining}s)`;
+  const countdown = setInterval(() => {
+    remaining--;
+    if (remaining > 0) {
+      activeBtn.textContent = `${PUMP_LABELS[action]} (${remaining}s)`;
+    } else {
+      clearInterval(countdown);
+      activeBtn.textContent = `${PUMP_LABELS[action]} (5 วิ)`;
+      activeBtn.classList.remove('running');
+      btnIntake.disabled = false;
+      btnDischarge.disabled = false;
+      pumpBusy = false;
+      addPumpAlert(`${PUMP_LABELS[action]} — เสร็จสิ้น`);
+    }
+  }, 1000);
+}
 
 // time tabs
 document.querySelectorAll('.time-tab').forEach(tab => {
