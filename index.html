@@ -460,10 +460,10 @@
 <div class="pump-control">
   <div class="pump-control-title">🔧 ควบคุมปั๊มเก็บตัวอย่างน้ำ</div>
   <button class="pump-btn pump-btn-intake" id="btn-intake" onclick="pumpCommand('intake')">
-    ⬇️ ดูดน้ำเข้า (10 วิ)
+    ⬇️ ดูดน้ำเข้า (15 วิ)
   </button>
   <button class="pump-btn pump-btn-discharge" id="btn-discharge" onclick="pumpCommand('discharge')">
-    ⬆️ ดูดน้ำออก (10 วิ)
+    ⬆️ ดูดน้ำออก (15 วิ)
   </button>
 </div>
 
@@ -496,7 +496,7 @@ updateClock();
 const MAX_POINTS = 30;
 const trendData = {
   labels: [],
-  ph: [], tds: []
+  ph: [], tds: [], do: [], ec: []
 };
 
 function genLabel() {
@@ -509,6 +509,8 @@ for (let i = MAX_POINTS; i >= 0; i--) {
   trendData.labels.push('');
   trendData.ph.push((7.3 + (Math.random()-.5)*.4).toFixed(2));
   trendData.tds.push((255 + (Math.random()-.5)*20).toFixed(0));
+  trendData.do.push((6.5 + (Math.random()-.5)*1.2).toFixed(2));
+  trendData.ec.push((510 + (Math.random()-.5)*40).toFixed(0));
 }
 
 const ctx = document.getElementById('trendChart').getContext('2d');
@@ -519,6 +521,8 @@ const trendChart = new Chart(ctx, {
     datasets: [
       { label: 'pH', data: trendData.ph, borderColor: '#58d4f5', backgroundColor: 'transparent', tension: 0.4, pointRadius: 0, borderWidth: 1.5 },
       { label: 'TDS (mg/L)/100', data: trendData.tds.map(v=>v/100), borderColor: '#bc8cff', backgroundColor: 'transparent', tension: 0.4, pointRadius: 0, borderWidth: 1.5 },
+      { label: 'DO (mg/L)', data: trendData.do, borderColor: '#3fb950', backgroundColor: 'transparent', tension: 0.4, pointRadius: 0, borderWidth: 1.5 },
+      { label: 'EC (µS/cm)/100', data: trendData.ec.map(v=>v/100), borderColor: '#d29922', backgroundColor: 'transparent', tension: 0.4, pointRadius: 0, borderWidth: 1.5 },
     ]
   },
   options: {
@@ -575,14 +579,18 @@ function pushChartPoint(key, value) {
   const label = genLabel();
   if (trendData.labels.length >= MAX_POINTS) {
     trendData.labels.shift();
-    trendData.ph.shift(); trendData.tds.shift();
+    trendData.ph.shift(); trendData.tds.shift(); trendData.do.shift(); trendData.ec.shift();
     trendChart.data.datasets[0].data.shift();
     trendChart.data.datasets[1].data.shift();
+    trendChart.data.datasets[2].data.shift();
+    trendChart.data.datasets[3].data.shift();
   }
   trendData.labels.push(label);
   trendChart.data.labels = trendData.labels;
   if (key === 'ph') { trendData.ph.push(num); trendChart.data.datasets[0].data = [...trendData.ph]; }
   if (key === 'tds') { trendData.tds.push(num/100); trendChart.data.datasets[1].data = [...trendData.tds.map(v=>v/100)]; }
+  if (key === 'do')  { trendData.do.push(num); trendChart.data.datasets[2].data = [...trendData.do]; }
+  if (key === 'ec')  { trendData.ec.push(num/100); trendChart.data.datasets[3].data = [...trendData.ec.map(v=>v/100)]; }
   trendChart.update('none');
 }
 
@@ -707,8 +715,8 @@ setTimeout(() => {
   }, 2000);
 }, 4000);
 
-// ===== PUMP CONTROL =====
-const PUMP_DURATION = 5; // วินาที (ต้องตรงกับที่ตั้งไว้ในโค้ด ESP32/Node-RED)
+// ===== PUMP CONTROL (ปุ่มจับเวลา 15 วินาที ผ่าน Node-RED) =====
+const PUMP_DURATION = 15; // วินาที (ต้องตรงกับที่ตั้งไว้ใน Trigger node ของ Node-RED ด้วย)
 const PUMP_TOPICS = { intake: 'boat/pump/intake', discharge: 'boat/pump/discharge' };
 const PUMP_LABELS = { intake: '⬇️ ดูดน้ำเข้า', discharge: '⬆️ ดูดน้ำออก' };
 let pumpBusy = false;
@@ -758,7 +766,7 @@ function pumpCommand(action) {
       activeBtn.textContent = `${PUMP_LABELS[action]} (${remaining}s)`;
     } else {
       clearInterval(countdown);
-      activeBtn.textContent = `${PUMP_LABELS[action]} (5 วิ)`;
+      activeBtn.textContent = `${PUMP_LABELS[action]} (15 วิ)`;
       activeBtn.classList.remove('running');
       btnIntake.disabled = false;
       btnDischarge.disabled = false;
