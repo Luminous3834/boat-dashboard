@@ -280,6 +280,7 @@
     border-radius: 6px; padding: 3px 8px; font-size: 11px; cursor: pointer; font-family: inherit;
   }
   .btn-del-record:hover { background: rgba(255,123,114,.12); }
+  .mini-badge { font-size: 9px; padding: 1px 6px; margin-left: 4px; white-space: nowrap; }
 </style>
 </head>
 <body>
@@ -897,16 +898,27 @@ function readVal(id) {
   return el ? el.textContent : '—';
 }
 
+function readBadge(id) {
+  const el = document.getElementById(id);
+  if (!el) return { text: '—', cls: 'badge-ok' };
+  const cls = [...el.classList].find(c => c.startsWith('badge-')) || 'badge-ok';
+  return { text: el.textContent, cls };
+}
+
 function saveRecord() {
   const now = new Date();
+  const phBadge = readBadge('ph-badge');
+  const doBadge = readBadge('do-badge');
+  const ecBadge = readBadge('ec-badge');
+  const tdsBadge = readBadge('tds-badge');
   const record = {
     id: Date.now(),
     date: `${String(now.getDate()).padStart(2,'0')}/${String(now.getMonth()+1).padStart(2,'0')}/${now.getFullYear()+543}`,
     time: `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}:${String(now.getSeconds()).padStart(2,'0')}`,
-    ph: readVal('ph-val'),
-    do_: readVal('do-val'),
-    ec: readVal('ec-val'),
-    tds: readVal('tds-val')
+    ph: readVal('ph-val'), phStatus: phBadge.text, phCls: phBadge.cls,
+    do_: readVal('do-val'), doStatus: doBadge.text, doCls: doBadge.cls,
+    ec: readVal('ec-val'), ecStatus: ecBadge.text, ecCls: ecBadge.cls,
+    tds: readVal('tds-val'), tdsStatus: tdsBadge.text, tdsCls: tdsBadge.cls
   };
   savedRecords.unshift(record);
   persistRecords();
@@ -948,37 +960,7 @@ function renderRecords() {
     <tr>
       <td>${r.date}</td>
       <td>${r.time}</td>
-      <td>${r.ph}</td>
-      <td>${r.do_}</td>
-      <td>${r.ec}</td>
-      <td>${r.tds}</td>
-      <td><button class="btn-del-record" onclick="deleteRecord(${r.id})">ลบ</button></td>
-    </tr>
-  `).join('');
-}
-
-function exportRecordsCSV() {
-  if (savedRecords.length === 0) return;
-  const header = 'วันที่,เวลา,pH,DO (mg/L),EC (µS/cm),TDS (mg/L)\n';
-  const rows = savedRecords.map(r => `${r.date},${r.time},${r.ph},${r.do_},${r.ec},${r.tds}`).join('\n');
-  const blob = new Blob(['\uFEFF' + header + rows], { type: 'text/csv;charset=utf-8;' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `water_quality_records_${Date.now()}.csv`;
-  a.click();
-  URL.revokeObjectURL(url);
-}
-
-loadRecords();
-
-// time tabs
-document.querySelectorAll('.time-tab').forEach(tab => {
-  tab.addEventListener('click', () => {
-    document.querySelectorAll('.time-tab').forEach(t => t.classList.remove('active'));
-    tab.classList.add('active');
-  });
-});
-</script>
-</body>
-</html>
+      <td>${r.ph} <span class="status-badge mini-badge ${r.phCls || 'badge-ok'}">${r.phStatus || '—'}</span></td>
+      <td>${r.do_} <span class="status-badge mini-badge ${r.doCls || 'badge-ok'}">${r.doStatus || '—'}</span></td>
+      <td>${r.ec} <span class="status-badge mini-badge ${r.ecCls || 'badge-ok'}">${r.ecStatus || '—'}</span></td>
+      <t
