@@ -963,4 +963,36 @@ function renderRecords() {
       <td>${r.ph} <span class="status-badge mini-badge ${r.phCls || 'badge-ok'}">${r.phStatus || '—'}</span></td>
       <td>${r.do_} <span class="status-badge mini-badge ${r.doCls || 'badge-ok'}">${r.doStatus || '—'}</span></td>
       <td>${r.ec} <span class="status-badge mini-badge ${r.ecCls || 'badge-ok'}">${r.ecStatus || '—'}</span></td>
-      <t
+      <td>${r.tds} <span class="status-badge mini-badge ${r.tdsCls || 'badge-ok'}">${r.tdsStatus || '—'}</span></td>
+      <td><button class="btn-del-record" onclick="deleteRecord(${r.id})">ลบ</button></td>
+    </tr>
+  `).join('');
+}
+
+function exportRecordsCSV() {
+  if (savedRecords.length === 0) return;
+  const header = 'วันที่,เวลา,pH,สถานะ pH,DO (mg/L),สถานะ DO,EC (µS/cm),สถานะ EC,TDS (mg/L),สถานะ TDS\n';
+  const rows = savedRecords.map(r =>
+    `${r.date},${r.time},${r.ph},${r.phStatus || ''},${r.do_},${r.doStatus || ''},${r.ec},${r.ecStatus || ''},${r.tds},${r.tdsStatus || ''}`
+  ).join('\n');
+  const blob = new Blob(['\uFEFF' + header + rows], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `water_quality_records_${Date.now()}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+loadRecords();
+
+// time tabs
+document.querySelectorAll('.time-tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.time-tab').forEach(t => t.classList.remove('active'));
+    tab.classList.add('active');
+  });
+});
+</script>
+</body>
+</html>
