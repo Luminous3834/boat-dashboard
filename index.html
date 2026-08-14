@@ -105,6 +105,7 @@
 
   /* MAIN */
   .main { flex: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+  .page { display: flex; flex-direction: column; gap: 12px; flex: 1; min-height: 0; }
 
   /* TOP INFO BAR */
   .info-bar {
@@ -223,18 +224,16 @@
 
   /* PUMP CONTROL */
   .pump-control {
-    position: fixed; bottom: 16px; right: 16px; z-index: 150;
-    background: var(--surface); border: 1px solid var(--border);
-    border-radius: var(--radius); padding: 12px 14px;
-    display: flex; flex-direction: column; gap: 8px;
-    box-shadow: 0 4px 16px rgba(0,0,0,.35);
-    min-width: 190px;
+    background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 10px; padding: 10px 12px;
+    display: flex; flex-direction: column; gap: 6px;
+    margin-bottom: 14px;
   }
   .pump-control-title { font-size: 11px; font-weight: 600; color: var(--text-muted); margin-bottom: 2px; }
   .pump-btn {
     display: flex; align-items: center; justify-content: center; gap: 6px;
-    padding: 10px 12px; border-radius: 8px; border: 1px solid;
-    font-size: 13px; font-weight: 600; cursor: pointer;
+    padding: 8px 10px; border-radius: 8px; border: 1px solid;
+    font-size: 12px; font-weight: 600; cursor: pointer;
     background: transparent; transition: all .15s; font-family: inherit;
   }
   .pump-btn:disabled { cursor: not-allowed; opacity: .55; }
@@ -243,6 +242,44 @@
   .pump-btn-discharge { color: var(--do-color); border-color: rgba(63,185,80,.4); background: rgba(63,185,80,.08); }
   .pump-btn-discharge:not(:disabled):hover { background: rgba(63,185,80,.18); }
   .pump-btn.running { animation: pulse 1s infinite; }
+
+  /* SAVE ROW */
+  .save-row {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 12px 16px;
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  }
+  .save-row-title { font-size: 13px; font-weight: 600; }
+  .save-row-desc { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+  .btn-save {
+    flex-shrink: 0;
+    padding: 10px 18px; border-radius: 8px; border: 1px solid rgba(88,212,245,.4);
+    background: rgba(88,212,245,.1); color: var(--ph-color);
+    font-size: 13px; font-weight: 600; cursor: pointer;
+    font-family: inherit; transition: all .15s;
+  }
+  .btn-save:hover { background: rgba(88,212,245,.2); }
+  .btn-save:active { transform: scale(.97); }
+  .btn-save.saved { border-color: rgba(63,185,80,.4); background: rgba(63,185,80,.15); color: #3fb950; }
+
+  /* RECORDS PAGE */
+  .records-table-wrap { overflow-x: auto; }
+  .records-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .records-table th {
+    text-align: left; padding: 8px 10px; color: var(--text-muted);
+    font-weight: 600; font-size: 11px; border-bottom: 1px solid var(--border);
+    white-space: nowrap;
+  }
+  .records-table td {
+    padding: 8px 10px; border-bottom: 1px solid var(--border); white-space: nowrap;
+  }
+  .records-table tbody tr:hover { background: rgba(255,255,255,0.03); }
+  .records-empty { text-align: center; color: var(--text-muted); padding: 24px 10px !important; white-space: normal; }
+  .btn-del-record {
+    background: transparent; border: 1px solid rgba(255,123,114,.35); color: #ff7b72;
+    border-radius: 6px; padding: 3px 8px; font-size: 11px; cursor: pointer; font-family: inherit;
+  }
+  .btn-del-record:hover { background: rgba(255,123,114,.12); }
 </style>
 </head>
 <body>
@@ -285,8 +322,20 @@
 <div class="layout">
   <!-- SIDEBAR -->
   <nav class="sidebar">
-    <div class="nav-item active"><span class="nav-icon">📊</span> ภาพรวม</div>
+    <div class="nav-item active" id="nav-overview" onclick="showPage('overview')"><span class="nav-icon">📊</span> ภาพรวม</div>
+    <div class="nav-item" id="nav-records" onclick="showPage('records')"><span class="nav-icon">📝</span> บันทึกค่า</div>
     <div class="sidebar-footer">
+      <!-- ควบคุมปั๊มเก็บตัวอย่างน้ำ -->
+      <div class="pump-control">
+        <div class="pump-control-title">🔧 ควบคุมปั๊มเก็บตัวอย่างน้ำ</div>
+        <button class="pump-btn pump-btn-intake" id="btn-intake" onclick="pumpCommand('intake')">
+          ⬇️ ดูดน้ำเข้า (15 วิ)
+        </button>
+        <button class="pump-btn pump-btn-discharge" id="btn-discharge" onclick="pumpCommand('discharge')">
+          ⬆️ ดูดน้ำออก (15 วิ)
+        </button>
+      </div>
+
       <div class="boat-status">
         <div class="name">🚢 เรืออัจฉริยะ</div>
         <div class="status-row"><span>สถานะ</span><span class="val"><span class="online-dot"></span>ทำงาน</span></div>
@@ -300,6 +349,9 @@
 
   <!-- MAIN -->
   <main class="main">
+
+  <!-- ===== หน้า: ภาพรวม ===== -->
+  <div id="page-overview" class="page">
 
     <!-- INFO BAR -->
     <div class="info-bar">
@@ -453,18 +505,56 @@
       </div>
 
     </div>
-  </main>
-</div>
 
-<!-- PUMP CONTROL (ขวาล่าง) -->
-<div class="pump-control">
-  <div class="pump-control-title">🔧 ควบคุมปั๊มเก็บตัวอย่างน้ำ</div>
-  <button class="pump-btn pump-btn-intake" id="btn-intake" onclick="pumpCommand('intake')">
-    ⬇️ ดูดน้ำเข้า (15 วิ)
-  </button>
-  <button class="pump-btn pump-btn-discharge" id="btn-discharge" onclick="pumpCommand('discharge')">
-    ⬆️ ดูดน้ำออก (15 วิ)
-  </button>
+    <!-- ปุ่มบันทึกค่า -->
+    <div class="save-row">
+      <div class="save-row-text">
+        <div class="save-row-title">💾 บันทึกค่าปัจจุบันลงตาราง</div>
+        <div class="save-row-desc">กดเพื่อบันทึกค่า pH, DO, EC, TDS ณ เวลานี้ ไปที่หน้า "บันทึกค่า"</div>
+      </div>
+      <button class="btn-save" id="btn-save-record" onclick="saveRecord()">💾 บันทึกค่าเดี๋ยวนี้</button>
+    </div>
+
+  </div>
+  <!-- ===== จบหน้า: ภาพรวม ===== -->
+
+  <!-- ===== หน้า: บันทึกค่า ===== -->
+  <div id="page-records" class="page" style="display:none;">
+
+    <div class="panel" style="flex:none;">
+      <div class="panel-header">
+        <div class="panel-title">📝 ค่าที่บันทึกไว้</div>
+        <div style="display:flex; gap:8px;">
+          <span style="font-size:11px;color:var(--do-color);cursor:pointer" onclick="exportRecordsCSV()">⬇️ ส่งออก CSV</span>
+          <span style="font-size:11px;color:#ff7b72;cursor:pointer" onclick="clearRecords()">🗑️ ลบทั้งหมด</span>
+        </div>
+      </div>
+      <div class="records-table-wrap">
+        <table class="records-table">
+          <thead>
+            <tr>
+              <th>วันที่</th>
+              <th>เวลา</th>
+              <th>pH</th>
+              <th>DO (mg/L)</th>
+              <th>EC (µS/cm)</th>
+              <th>TDS (mg/L)</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="records-tbody">
+            <tr id="records-empty-row">
+              <td colspan="7" class="records-empty">ยังไม่มีการบันทึกค่า — กดปุ่ม "บันทึกค่าเดี๋ยวนี้" ที่หน้าภาพรวม</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+  </div>
+  <!-- ===== จบหน้า: บันทึกค่า ===== -->
+
+  </main>
 </div>
 
 <script>
@@ -775,6 +865,112 @@ function pumpCommand(action) {
     }
   }, 1000);
 }
+
+// ===== หน้าเพจ (ภาพรวม / บันทึกค่า) =====
+function showPage(page) {
+  document.getElementById('page-overview').style.display = page === 'overview' ? '' : 'none';
+  document.getElementById('page-records').style.display = page === 'records' ? '' : 'none';
+  document.getElementById('nav-overview').classList.toggle('active', page === 'overview');
+  document.getElementById('nav-records').classList.toggle('active', page === 'records');
+}
+
+// ===== บันทึกค่า =====
+const RECORDS_KEY = 'boat_water_records';
+let savedRecords = [];
+
+function loadRecords() {
+  try {
+    const raw = localStorage.getItem(RECORDS_KEY);
+    savedRecords = raw ? JSON.parse(raw) : [];
+  } catch (e) {
+    savedRecords = [];
+  }
+  renderRecords();
+}
+
+function persistRecords() {
+  try { localStorage.setItem(RECORDS_KEY, JSON.stringify(savedRecords)); } catch (e) {}
+}
+
+function readVal(id) {
+  const el = document.getElementById(id);
+  return el ? el.textContent : '—';
+}
+
+function saveRecord() {
+  const now = new Date();
+  const record = {
+    id: Date.now(),
+    date: `${String(now.getDate()).padStart(2,'0')}/${String(now.getMonth()+1).padStart(2,'0')}/${now.getFullYear()+543}`,
+    time: `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}:${String(now.getSeconds()).padStart(2,'0')}`,
+    ph: readVal('ph-val'),
+    do_: readVal('do-val'),
+    ec: readVal('ec-val'),
+    tds: readVal('tds-val')
+  };
+  savedRecords.unshift(record);
+  persistRecords();
+  renderRecords();
+
+  // ฟีดแบ็กให้ผู้ใช้เห็นว่าบันทึกสำเร็จ
+  const btn = document.getElementById('btn-save-record');
+  if (btn) {
+    const original = btn.textContent;
+    btn.textContent = '✅ บันทึกแล้ว';
+    btn.classList.add('saved');
+    setTimeout(() => { btn.textContent = original; btn.classList.remove('saved'); }, 1500);
+  }
+  addPumpAlert('บันทึกค่าลงตารางสำเร็จ');
+}
+
+function deleteRecord(id) {
+  savedRecords = savedRecords.filter(r => r.id !== id);
+  persistRecords();
+  renderRecords();
+}
+
+function clearRecords() {
+  if (savedRecords.length === 0) return;
+  if (!confirm('ต้องการลบข้อมูลที่บันทึกไว้ทั้งหมดหรือไม่?')) return;
+  savedRecords = [];
+  persistRecords();
+  renderRecords();
+}
+
+function renderRecords() {
+  const tbody = document.getElementById('records-tbody');
+  if (!tbody) return;
+  if (savedRecords.length === 0) {
+    tbody.innerHTML = `<tr id="records-empty-row"><td colspan="7" class="records-empty">ยังไม่มีการบันทึกค่า — กดปุ่ม "บันทึกค่าเดี๋ยวนี้" ที่หน้าภาพรวม</td></tr>`;
+    return;
+  }
+  tbody.innerHTML = savedRecords.map(r => `
+    <tr>
+      <td>${r.date}</td>
+      <td>${r.time}</td>
+      <td>${r.ph}</td>
+      <td>${r.do_}</td>
+      <td>${r.ec}</td>
+      <td>${r.tds}</td>
+      <td><button class="btn-del-record" onclick="deleteRecord(${r.id})">ลบ</button></td>
+    </tr>
+  `).join('');
+}
+
+function exportRecordsCSV() {
+  if (savedRecords.length === 0) return;
+  const header = 'วันที่,เวลา,pH,DO (mg/L),EC (µS/cm),TDS (mg/L)\n';
+  const rows = savedRecords.map(r => `${r.date},${r.time},${r.ph},${r.do_},${r.ec},${r.tds}`).join('\n');
+  const blob = new Blob(['\uFEFF' + header + rows], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `water_quality_records_${Date.now()}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+loadRecords();
 
 // time tabs
 document.querySelectorAll('.time-tab').forEach(tab => {
