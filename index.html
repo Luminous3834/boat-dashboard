@@ -97,7 +97,8 @@
   .boat-status .name { font-weight: 600; font-size: 12px; margin-bottom: 6px; color: var(--text); }
   .status-row { display: flex; align-items: center; justify-content: space-between; margin: 3px 0; color: var(--text-muted); }
   .status-row .val { font-weight: 600; color: var(--text); }
-  .online-dot { width:7px;height:7px;border-radius:50%;background:#3fb950;display:inline-block;margin-right:4px; }
+  .online-dot { width:7px;height:7px;border-radius:50%;background:#7d8590;display:inline-block;margin-right:4px; }
+  .online-dot.active { background:#3fb950; }
   .battery-bar {
     height: 6px; background: var(--surface3); border-radius: 3px; margin: 2px 0; overflow: hidden;
   }
@@ -330,16 +331,16 @@
       <div class="pump-control">
         <div class="pump-control-title">🔧 ควบคุมปั๊มเก็บตัวอย่างน้ำ</div>
         <button class="pump-btn pump-btn-intake" id="btn-intake" onclick="pumpCommand('intake')">
-          ⬇️ ดูดน้ำเข้า (15 วิ)
+          ⬇️ ดูดน้ำเข้า (30 วิ)
         </button>
         <button class="pump-btn pump-btn-discharge" id="btn-discharge" onclick="pumpCommand('discharge')">
-          ⬆️ ดูดน้ำออก (15 วิ)
+          ⬆️ ดูดน้ำออก (20 วิ)
         </button>
       </div>
 
       <div class="boat-status">
         <div class="name">🚢 เรืออัจฉริยะ</div>
-        <div class="status-row"><span>สถานะ</span><span class="val"><span class="online-dot"></span>ทำงาน</span></div>
+        <div class="status-row"><span>สถานะ</span><span class="val"><span class="online-dot" id="boat-status-dot"></span><span id="boat-status-label">ยังไม่ทำงาน</span></span></div>
         <div class="status-row"><span>สัญญาณ</span><span class="val">📶 ดี</span></div>
         <div class="status-row" style="margin-top:6px;"><span>แบตเตอรี่</span><span class="val" id="battery-label">—</span></div>
         <div class="battery-bar"><div class="battery-fill" id="battery-fill"></div></div>
@@ -767,6 +768,15 @@ function updateBattery(payload) {
   }
 }
 
+// ===== สถานะทำงานจริง (ขึ้นอยู่กับว่ามีข้อมูลจริงจากบอร์ดส่งเข้ามาแล้วหรือยัง) =====
+function updateBoatStatus(isWorking) {
+  const dot = document.getElementById('boat-status-dot');
+  const label = document.getElementById('boat-status-label');
+  if (dot) dot.classList.toggle('active', isWorking);
+  if (label) label.textContent = isWorking ? 'ทำงาน' : 'ยังไม่ทำงาน';
+}
+updateBoatStatus(false); // ค่าเริ่มต้นตอนเปิดหน้าเว็บ ยังไม่มีข้อมูลจริงเข้ามา
+
 const dot = document.getElementById('mqtt-dot');
 const lbl = document.getElementById('mqtt-label');
 const alertDesc = document.getElementById('mqtt-alert-desc');
@@ -793,6 +803,7 @@ try {
       updateBattery(val);
     } else if (key) {
       demoMode = false;
+      updateBoatStatus(true);
       updateSensor(key, val);
       setLatestValue(key, val);
     }
@@ -834,8 +845,8 @@ setTimeout(() => {
   }, 2000);
 }, 4000);
 
-// ===== PUMP CONTROL (ปุ่มจับเวลา 15 วินาที ผ่าน Node-RED) =====
-const PUMP_DURATION = 15; // วินาที (ต้องตรงกับที่ตั้งไว้ใน Trigger node ของ Node-RED ด้วย)
+// ===== PUMP CONTROL (ปุ่มจับเวลา: ดูดเข้า 30 วิ / ดูดออก 20 วิ ผ่าน Node-RED) =====
+const PUMP_DURATIONS = { intake: 30, discharge: 20 }; // วินาที (ต้องตรงกับที่ตั้งไว้ใน Trigger node ของ Node-RED ด้วย)
 const PUMP_TOPICS = { intake: 'boat/pump/intake', discharge: 'boat/pump/discharge' };
 const PUMP_LABELS = { intake: '⬇️ ดูดน้ำเข้า', discharge: '⬆️ ดูดน้ำออก' };
 let pumpBusy = false;
@@ -877,7 +888,7 @@ function pumpCommand(action) {
   mqttClient.publish(PUMP_TOPICS[action], '1');
   addPumpAlert(`${PUMP_LABELS[action]} — เริ่มทำงาน`);
 
-  let remaining = PUMP_DURATION;
+  let remaining = PUMP_DURATIONS[action];
   activeBtn.textContent = `${PUMP_LABELS[action]} (${remaining}s)`;
   const countdown = setInterval(() => {
     remaining--;
@@ -885,7 +896,7 @@ function pumpCommand(action) {
       activeBtn.textContent = `${PUMP_LABELS[action]} (${remaining}s)`;
     } else {
       clearInterval(countdown);
-      activeBtn.textContent = `${PUMP_LABELS[action]} (15 วิ)`;
+      activeBtn.textContent = `${PUMP_LABELS[action]} (${PUMP_DURATIONS[action]} วิ)`;
       activeBtn.classList.remove('running');
       btnIntake.disabled = false;
       btnDischarge.disabled = false;
