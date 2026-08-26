@@ -598,10 +598,10 @@ function genLabel() {
 // Seed with dummy data
 for (let i = MAX_POINTS; i >= 0; i--) {
   trendData.labels.push('');
-  trendData.ph.push((7.3 + (Math.random()-.5)*.4).toFixed(2));
-  trendData.tds.push((255 + (Math.random()-.5)*20).toFixed(0));
-  trendData.do.push((6.5 + (Math.random()-.5)*1.2).toFixed(2));
-  trendData.ec.push((510 + (Math.random()-.5)*40).toFixed(0));
+  trendData.ph.push(parseFloat((7.3 + (Math.random()-.5)*.4).toFixed(2)));
+  trendData.tds.push(parseFloat((255 + (Math.random()-.5)*20).toFixed(0)) / 100);
+  trendData.do.push(parseFloat((6.5 + (Math.random()-.5)*1.2).toFixed(2)));
+  trendData.ec.push(parseFloat((510 + (Math.random()-.5)*40).toFixed(0)) / 100);
 }
 
 const ctx = document.getElementById('trendChart').getContext('2d');
@@ -611,9 +611,9 @@ const trendChart = new Chart(ctx, {
     labels: trendData.labels,
     datasets: [
       { label: 'pH', data: trendData.ph, borderColor: '#58d4f5', backgroundColor: 'transparent', tension: 0.4, pointRadius: 0, borderWidth: 1.5 },
-      { label: 'TDS (mg/L)/100', data: trendData.tds.map(v=>v/100), borderColor: '#bc8cff', backgroundColor: 'transparent', tension: 0.4, pointRadius: 0, borderWidth: 1.5 },
+      { label: 'TDS (mg/L)/100', data: trendData.tds, borderColor: '#bc8cff', backgroundColor: 'transparent', tension: 0.4, pointRadius: 0, borderWidth: 1.5 },
       { label: 'DO (mg/L)', data: trendData.do, borderColor: '#3fb950', backgroundColor: 'transparent', tension: 0.4, pointRadius: 0, borderWidth: 1.5 },
-      { label: 'EC (µS/cm)/100', data: trendData.ec.map(v=>v/100), borderColor: '#d29922', backgroundColor: 'transparent', tension: 0.4, pointRadius: 0, borderWidth: 1.5 },
+      { label: 'EC (µS/cm)/100', data: trendData.ec, borderColor: '#d29922', backgroundColor: 'transparent', tension: 0.4, pointRadius: 0, borderWidth: 1.5 },
     ]
   },
   options: {
@@ -664,10 +664,22 @@ function updateSensor(key, value) {
   if (badge) { badge.textContent = label; badge.className = 'status-badge ' + cls; }
 }
 
-function pushChartPoint(key, value) {
+// เก็บ "ค่าล่าสุด" ของแต่ละเซนเซอร์ไว้เฉยๆ ไม่ไปยุ่งกับ array ของกราฟโดยตรง
+// (แก้บั๊กเดิม: ถ้าทุกเซนเซอร์แย่งกันเลื่อน+เขียนกราฟเอง จะเลื่อนเกินจนข้อมูลหมด)
+const latestValues = { ph: null, tds: null, do: null, ec: null };
+
+function setLatestValue(key, value) {
   const num = parseFloat(value);
   if (isNaN(num)) return;
-  const label = genLabel();
+  latestValues[key] = num;
+}
+
+// เลื่อนกราฟไปข้างหน้า "1 จุดต่อ 1 รอบ" เท่านั้น ไม่ว่าจะมีกี่เซนเซอร์อัปเดตมาในรอบนั้นก็ตาม
+// ถ้าเซนเซอร์ตัวไหนยังไม่มีค่าล่าสุด (เช่น ยังไม่เคยรับข้อมูล) จะใช้ค่าเดิมจุดก่อนหน้าซ้ำไปก่อน กันกราฟขาดช่วง
+function advanceChart() {
+  const hasAnyValue = Object.values(latestValues).some(v => v !== null);
+  if (!hasAnyValue) return; // ยังไม่มีข้อมูลอะไรเข้ามาเลย ยังไม่ต้องขยับกราฟ
+
   if (trendData.labels.length >= MAX_POINTS) {
     trendData.labels.shift();
     trendData.ph.shift(); trendData.tds.shift(); trendData.do.shift(); trendData.ec.shift();
@@ -676,12 +688,26 @@ function pushChartPoint(key, value) {
     trendChart.data.datasets[2].data.shift();
     trendChart.data.datasets[3].data.shift();
   }
-  trendData.labels.push(label);
+
+  trendData.labels.push(genLabel());
   trendChart.data.labels = trendData.labels;
-  if (key === 'ph') { trendData.ph.push(num); trendChart.data.datasets[0].data = [...trendData.ph]; }
-  if (key === 'tds') { trendData.tds.push(num/100); trendChart.data.datasets[1].data = [...trendData.tds.map(v=>v/100)]; }
-  if (key === 'do')  { trendData.do.push(num); trendChart.data.datasets[2].data = [...trendData.do]; }
-  if (key === 'ec')  { trendData.ec.push(num/100); trendChart.data.datasets[3].data = [...trendData.ec.map(v=>v/100)]; }
+
+  // ใช้ค่าล่าสุดที่มี ถ้าเซนเซอร์ตัวไหนยังไม่เคยส่งค่ามาเลย ให้ข้ามจุดนั้นไปก่อน (null = เว้นช่องว่างในกราฟ)
+  const phVal  = latestValues.ph;
+  const tdsVal = latestValues.tds;
+  const doVal  = latestValues.do;
+  const ecVal  = latestValues.ec;
+
+  trendData.ph.push(phVal);
+  trendData.tds.push(tdsVal !== null ? tdsVal / 100 : null);
+  trendData.do.push(doVal);
+  trendData.ec.push(ecVal !== null ? ecVal / 100 : null);
+
+  trendChart.data.datasets[0].data = [...trendData.ph];
+  trendChart.data.datasets[1].data = [...trendData.tds];
+  trendChart.data.datasets[2].data = [...trendData.do];
+  trendChart.data.datasets[3].data = [...trendData.ec];
+
   trendChart.update('none');
 }
 
@@ -768,7 +794,7 @@ try {
     } else if (key) {
       demoMode = false;
       updateSensor(key, val);
-      pushChartPoint(key, val);
+      setLatestValue(key, val);
     }
   });
 
@@ -797,12 +823,14 @@ setTimeout(() => {
         do: (6 + Math.random()*2).toFixed(1),
         ec: (500 + Math.random()*50).toFixed(0)
       };
-      Object.entries(demos).forEach(([k,v]) => { updateSensor(k,v); pushChartPoint(k,v); });
+      Object.entries(demos).forEach(([k,v]) => { updateSensor(k,v); setLatestValue(k,v); });
     }
     if (batteryDemoMode) {
       const label = document.getElementById('battery-label');
       if (label) label.textContent = 'รอข้อมูลจากบอร์ดจริง...';
     }
+    // เลื่อนกราฟ "ครั้งเดียวต่อรอบ" เสมอ ไม่ว่าจะมาจากข้อมูลจริงหรือ demo
+    advanceChart();
   }, 2000);
 }, 4000);
 
