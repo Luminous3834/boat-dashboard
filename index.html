@@ -331,10 +331,10 @@
       <div class="pump-control">
         <div class="pump-control-title">🔧 ควบคุมปั๊มเก็บตัวอย่างน้ำ</div>
         <button class="pump-btn pump-btn-intake" id="btn-intake" onclick="pumpCommand('intake')">
-          ⬇️ ดูดน้ำเข้า (20 วิ)
+          ⬇️ ดูดน้ำเข้า (16 วิ)
         </button>
         <button class="pump-btn pump-btn-discharge" id="btn-discharge" onclick="pumpCommand('discharge')">
-          ⬆️ ดูดน้ำออก (20 วิ)
+          ⬆️ ดูดน้ำออก (16 วิ)
         </button>
       </div>
 
@@ -845,8 +845,8 @@ setTimeout(() => {
   }, 2000);
 }, 4000);
 
-// ===== PUMP CONTROL (ปุ่มจับเวลา: ดูดเข้า 20 วิ / ดูดออก 20 วิ ผ่าน Node-RED) =====
-const PUMP_DURATIONS = { intake: 20, discharge: 20 }; // วินาที (ต้องตรงกับที่ตั้งไว้ใน Trigger node ของ Node-RED ด้วย)
+// ===== PUMP CONTROL (ปุ่มจับเวลา: ดูดเข้า 16 วิ / ดูดออก 16 วิ ผ่าน Node-RED) =====
+const PUMP_DURATIONS = { intake: 16, discharge: 16 }; // วินาที (ต้องตรงกับที่ตั้งไว้ใน Trigger node ของ Node-RED ด้วย)
 const PUMP_TOPICS = { intake: 'boat/pump/intake', discharge: 'boat/pump/discharge' };
 const PUMP_LABELS = { intake: '⬇️ ดูดน้ำเข้า', discharge: '⬆️ ดูดน้ำออก' };
 let pumpBusy = false;
