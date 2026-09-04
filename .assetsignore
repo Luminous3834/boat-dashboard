@@ -1,0 +1,7 @@
+# ไฟล์ที่ไม่ต้องอัปขึ้นเว็บ (ใช้รูปแบบเดียวกับ .gitignore)
+# ต้องวางไว้ที่รากของ assets.directory เท่านั้น
+.git
+.gitignore
+.assetsignore
+wrangler.jsonc
+DEPLOY.md

@@ -1,0 +1,12 @@
+{
+  // Config ของ Cloudflare Workers — ทำให้คำสั่ง `npx wrangler deploy` รู้ว่าต้องเอาไฟล์ไหนขึ้นเว็บ
+  // เว็บนี้เป็น static ล้วน (HTML/CSS/JS อย่างเดียว ไม่มีโค้ดฝั่งเซิร์ฟเวอร์)
+  // จึงไม่ต้องมีฟิลด์ "main" — มีแค่ "assets" ก็ deploy ได้
+  "name": "til-dashboard",
+  "compatibility_date": "2026-09-04",
+  "assets": {
+    // "./" = เอาไฟล์จากรากของ repo (index.html อยู่ตรงนี้)
+    // ไฟล์ที่ไม่อยากให้คนนอกเปิดดูได้ ใส่ไว้ใน .assetsignore
+    "directory": "./"
+  }
+}

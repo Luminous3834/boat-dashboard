@@ -73,24 +73,32 @@ const MQTT = {
 
 ---
 
-## ส่วนที่ 2 — ขึ้นเว็บบน Cloudflare Pages
+## ส่วนที่ 2 — ขึ้นเว็บบน Cloudflare Workers
+
+> Cloudflare รวม Pages เข้ากับ Workers แล้ว การ import repo จาก Git จะเข้า flow ของ
+> **Workers** และช่อง Deploy command จะเป็น `npx wrangler deploy` มาให้อัตโนมัติ
+> คำสั่งนี้ต้องการไฟล์ `wrangler.jsonc` ใน repo — ซึ่ง repo นี้มีให้แล้ว
 
 1. สมัคร https://dash.cloudflare.com (ฟรี)
-2. **Workers & Pages** → Create → **Pages** → Connect to Git → เลือก repo `boat-dashboard`
-3. ตั้งค่า build:
-   - Framework preset: **None**
-   - Build command: *(เว้นว่าง)*
-   - Build output directory: `/`
-4. Save and Deploy → ได้ URL `boat-dashboard.pages.dev` ทันที
-5. ต่อจากนี้ `git push` ทุกครั้ง Cloudflare จะ deploy ให้เองอัตโนมัติ
+2. **Workers & Pages** → Create → Import a repository → เลือก repo `boat-dashboard`
+3. ตั้งค่า build ให้ตรงตามนี้:
+   | ช่อง | ค่าที่ต้องใส่ |
+   |---|---|
+   | Build command | **เว้นว่าง** (เว็บเป็น static ไม่ต้อง build) |
+   | Deploy command | `npx wrangler deploy` *(ค่าเริ่มต้น ไม่ต้องแก้)* |
+   | Root directory | `/` |
+4. Save and Deploy → ได้ URL `til-dashboard.<ชื่อบัญชี>.workers.dev`
+5. ต่อจากนี้ `git push` ทุกครั้ง Cloudflare จะ build + deploy ให้เองอัตโนมัติ
 
-### 2.1 ใส่โดเมนของตัวเอง *(ยังไม่ทำตอนนี้ — ใช้ `*.pages.dev` ฟรีไปก่อน)*
+ไฟล์ที่เกี่ยวข้องใน repo:
+- `wrangler.jsonc` — บอก wrangler ว่าเว็บเป็น static ล้วน และให้เอาไฟล์จากรากของ repo
+- `.assetsignore` — กันไม่ให้ `DEPLOY.md` กับไฟล์ config ถูกอัปขึ้นเว็บสาธารณะ
 
-`til-dashboard.pages.dev` ใช้งานได้เต็มรูปแบบและมี HTTPS ให้อยู่แล้ว
-ค่อยกลับมาทำหัวข้อนี้ตอนอยากได้ชื่อสั้น ๆ ของตัวเอง — ผูกทีหลังได้ ไม่ต้องย้ายอะไร
-1. ซื้อโดเมนที่ Cloudflare Registrar (ขายราคาทุน ไม่บวกกำไร) หรือที่อื่นก็ได้
-2. ใน Pages project → **Custom domains** → Set up a custom domain → พิมพ์โดเมน
-3. ถ้าโดเมนอยู่ใน Cloudflare อยู่แล้ว มันจะตั้ง DNS + ออก HTTPS ให้อัตโนมัติภายในไม่กี่นาที
+### 2.1 ใส่โดเมนของตัวเอง *(ยังไม่ทำตอนนี้ — ใช้ `*.workers.dev` ฟรีไปก่อน)*
+
+`til-dashboard.<ชื่อบัญชี>.workers.dev` ใช้งานได้เต็มรูปแบบและมี HTTPS ให้อยู่แล้ว
+ค่อยกลับมาทำตอนอยากได้ชื่อสั้น ๆ ของตัวเอง — ผูกทีหลังได้ ไม่ต้องย้ายอะไร
+(Worker → Settings → Domains & Routes → Add custom domain)
 
 ### 2.2 (ถ้าต้องการ) ใส่ระบบ login กันคนนอก
 Cloudflare **Zero Trust** → Access → Applications → Add self-hosted application
