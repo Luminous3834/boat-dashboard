@@ -329,6 +329,8 @@
       display: grid; grid-template-columns: 1fr 1fr; gap: 12px; align-items: start;
     }
     .pump-control { margin-bottom: 0; }
+    .status-row { gap: 10px; }
+    .status-row .val { text-align: right; min-width: 0; overflow-wrap: anywhere; }
 
     .info-bar { grid-template-columns: 1fr 1fr; }
     .info-bar .info-card:first-child { grid-column: 1 / -1; }  /* การ์ดเลือกสถานีกินเต็มแถว */
@@ -343,6 +345,9 @@
     .logo-sub { font-size: 9px; }
     .header-title h1 { font-size: 12px; }
     .header-stat .lbl { display: none; }
+    .header { position: static; }   /* จอเตี้ย ปล่อยให้ header เลื่อนหายไปได้ จะได้พื้นที่ดูข้อมูลมากขึ้น */
+    .header-left { flex-basis: 100%; }
+    .header-right { width: 100%; margin-left: 0; justify-content: flex-start; gap: 14px; }
     .sidebar-footer { grid-template-columns: 1fr; }
     .sensor-grid { gap: 8px; }
     .sensor-card { padding: 10px 6px; }
