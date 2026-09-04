@@ -35,12 +35,18 @@ Topic ที่ใช้:
 2. Create Cluster → เลือก **Serverless (Free)**
 3. จดค่า **Cluster URL** ไว้ (หน้าตาแบบ `abc123def456.s1.eu.hivemq.cloud`)
 4. เข้าแท็บ **Access Management** → Add credentials
-   - สร้าง 3 users แยกกัน เพื่อให้เพิกถอนทีละตัวได้ถ้าหลุด:
-     | Username | ใช้ที่ไหน | Permission |
-     |---|---|---|
-     | `boat` | ESP32 | Publish & Subscribe |
-     | `nodered` | Node-RED | Publish & Subscribe |
-     | `dashboard` | เว็บ | Publish & Subscribe |
+   สร้าง 3 users แยกกัน ให้สิทธิ์ "เท่าที่จำเป็น" ของแต่ละตัว จะได้เพิกถอนทีละตัวได้ถ้าหลุด:
+
+   | Username | ใช้ที่ไหน | ให้สิทธิ์แค่ |
+   |---|---|---|
+   | `boat` | ESP32 | Publish `boat/ph`, `boat/do`, `boat/tds_raw`, `boat/battery`, `boat/gps` + Subscribe `boat/relay/#` |
+   | `nodered` | Node-RED | Publish & Subscribe `boat/#` (เป็นตัวกลาง ต้องใช้ทุก topic) |
+   | `dashboard` | เว็บ | Subscribe `boat/#` + Publish **เฉพาะ** `boat/pump/#` |
+
+   > ⚠️ **สำคัญ:** รหัสของ `dashboard` จะฝังอยู่ใน `index.html` ซึ่งเป็นโค้ดฝั่งเบราว์เซอร์ —
+   > **ใครกด View Source ก็เห็น** เลี่ยงไม่ได้ถ้าเว็บจะต่อ MQTT ตรง ๆ
+   > เพราะงั้นห้ามให้ user ตัวนี้ publish `boat/relay/#` เด็ดขาด ไม่งั้นคนที่เปิดเว็บเจอ
+   > จะสั่ง relay ปั๊มข้ามหน้าเว็บได้เลย ส่วนการกันไม่ให้คนนอกเปิดเว็บ ดูหัวข้อ 2.2
 
 ### 1.2 แก้ 3 ที่ให้ชี้ไป broker ใหม่
 

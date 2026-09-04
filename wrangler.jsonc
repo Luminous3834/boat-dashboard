@@ -8,5 +8,9 @@
     // "./" = เอาไฟล์จากรากของ repo (index.html อยู่ตรงนี้)
     // ไฟล์ที่ไม่อยากให้คนนอกเปิดดูได้ ใส่ไว้ใน .assetsignore
     "directory": "./"
-  }
+  },
+
+  // ระบุให้ชัดเพื่อไม่ให้ wrangler เตือนทุกครั้งที่ deploy
+  "workers_dev": true,    // เปิด URL ฟรี til-dashboard.<บัญชี>.workers.dev
+  "preview_urls": false   // ไม่ต้องสร้าง URL สาธารณะแยกให้ทุก branch (ลดหน้าเว็บที่คนนอกเปิดเจอ)
 }
