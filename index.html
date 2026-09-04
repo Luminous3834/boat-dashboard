@@ -61,6 +61,11 @@
     font-size: 12px; font-weight: 600; color: #3fb950;
   }
   .live-dot { width:7px;height:7px;border-radius:50%;background:#3fb950;animation:pulse 1.5s infinite; }
+  /* สถานะที่ไม่ปกติ — ต้องประกาศหลัง .live-badge/.live-dot เพื่อให้ทับค่าเดิมได้ */
+  .live-badge.stale { background: rgba(125,133,144,.12); border-color: rgba(125,133,144,.35); color: var(--text-muted); }
+  .live-badge.stale .live-dot { background: var(--text-muted); animation: none; }
+  .live-badge.down  { background: rgba(255,123,114,.12); border-color: rgba(255,123,114,.35); color: #ff7b72; }
+  .live-badge.down .live-dot { background: #ff7b72; animation: none; }
   @keyframes pulse { 0%,100%{opacity:1;} 50%{opacity:0.4;} }
   .header-stat { text-align: center; }
   .header-stat .val { font-size: 14px; font-weight: 600; }
@@ -129,6 +134,8 @@
   .info-val { font-size: 14px; font-weight: 700; }
   .info-lbl { font-size: 10px; color: var(--text-muted); }
   .status-online { color: #3fb950; font-weight: 700; font-size: 13px; }
+  .status-warn   { color: #ffa657; font-weight: 700; font-size: 13px; }
+  .status-down   { color: #ff7b72; font-weight: 700; font-size: 13px; }
 
   /* SENSOR GRID */
   .sensor-grid {
@@ -374,13 +381,13 @@
     </div>
   </div>
   <div class="header-right">
-    <div class="live-badge"><span class="live-dot"></span>LIVE</div>
+    <div class="live-badge" id="live-badge"><span class="live-dot"></span><span id="live-label">LIVE</span></div>
     <div class="header-stat">
       <div id="header-date"></div>
       <div id="header-time"></div>
     </div>
     <div class="header-stat">
-      <div class="status-online">● ออนไลน์</div>
+      <div class="status-online" id="sys-status-header">● กำลังเชื่อมต่อ…</div>
       <div class="lbl">สถานะระบบ</div>
     </div>
   </div>
@@ -441,10 +448,10 @@
         </div>
       </div>
       <div class="info-card">
-        <span style="font-size:18px">✅</span>
+        <span style="font-size:18px" id="sys-status-icon">⏳</span>
         <div>
           <div class="info-lbl">สถานะระบบ</div>
-          <div class="status-online">ออนไลน์</div>
+          <div class="status-online" id="sys-status-info">กำลังเชื่อมต่อ…</div>
         </div>
       </div>
     </div>
@@ -845,6 +852,52 @@ function updateBoatStatus(isWorking) {
 }
 updateBoatStatus(false); // ค่าเริ่มต้นตอนเปิดหน้าเว็บ ยังไม่มีข้อมูลจริงเข้ามา
 
+// ===== สถานะระบบตามจริง =====
+// เดิมป้าย "LIVE" กับ "ออนไลน์" เป็นข้อความตายตัวใน HTML ขึ้นเขียวตลอด
+// แม้ Node-RED จะดับหรือเรือจะปิดอยู่ ตรงนี้ทำให้มันบอกความจริงแทน
+//
+// ใช้ 3 สัญญาณ:
+//   mqttUp     - หน้าเว็บต่อ broker ได้ไหม
+//   lastDataAt - ค่าที่ผ่าน Node-RED มาแล้ว (ph/do/ec/tds/battery)
+//   lastRawAt  - ค่าดิบจาก ESP32 ตรง ๆ (boat/tds_raw)
+// การแยก 2 ตัวหลังทำให้บอกได้ว่า "เรือไม่ส่ง" หรือ "เรือส่งแต่ Node-RED ไม่แปลง"
+const RAW_TOPIC = 'boat/tds_raw';
+const DATA_TIMEOUT_MS = 15000;   // เงียบเกินเท่านี้ = ถือว่าไม่สดแล้ว
+let lastDataAt = 0;
+let lastRawAt  = 0;
+let mqttUp     = false;
+
+function updateSystemStatus() {
+  const now = Date.now();
+  const dataFresh = (now - lastDataAt) < DATA_TIMEOUT_MS;
+  const rawFresh  = (now - lastRawAt)  < DATA_TIMEOUT_MS;
+
+  let text, cls, icon, live, liveCls;
+  if (!mqttUp) {
+    text = 'ขาดการเชื่อมต่อ';   cls = 'status-down'; icon = '🔌'; live = 'ออฟไลน์';   liveCls = 'down';
+  } else if (dataFresh) {
+    text = 'ออนไลน์';            cls = 'status-online'; icon = '✅'; live = 'LIVE';      liveCls = '';
+  } else if (rawFresh) {
+    // บอร์ดยังส่งค่าดิบเข้ามา แต่ไม่มีค่าที่คำนวณแล้วกลับมา = ตัวประมวลผลหยุด
+    text = 'ตัวประมวลผลหยุด';   cls = 'status-warn'; icon = '⚠️'; live = 'รอข้อมูล';  liveCls = 'stale';
+  } else {
+    text = 'ไม่มีข้อมูลจากเรือ'; cls = 'status-warn'; icon = '⚠️'; live = 'ไม่มีข้อมูล'; liveCls = 'stale';
+  }
+
+  const h = document.getElementById('sys-status-header');
+  if (h) { h.textContent = '● ' + text; h.className = cls; }
+  const i = document.getElementById('sys-status-info');
+  if (i) { i.textContent = text; i.className = cls; }
+  const ic = document.getElementById('sys-status-icon');
+  if (ic) ic.textContent = icon;
+  const lb = document.getElementById('live-label');
+  if (lb) lb.textContent = live;
+  const badge = document.getElementById('live-badge');
+  if (badge) badge.className = 'live-badge' + (liveCls ? ' ' + liveCls : '');
+}
+updateSystemStatus();
+setInterval(updateSystemStatus, 1000);
+
 const dot = document.getElementById('mqtt-dot');
 const lbl = document.getElementById('mqtt-label');
 const alertDesc = document.getElementById('mqtt-alert-desc');
@@ -868,11 +921,16 @@ try {
     alertDesc.textContent = 'เชื่อมต่อ ' + MQTT.host + ' สำเร็จ';
     document.getElementById('alert-time-4').textContent = genLabel().substr(0,5);
     Object.keys(TOPICS).forEach(t => mqttClient.subscribe(t));
+    mqttClient.subscribe(RAW_TOPIC);   // ค่าดิบจากบอร์ด ใช้ดูว่าเรือยังส่งอยู่ไหม
+    mqttUp = true;
+    updateSystemStatus();
   });
 
   mqttClient.on('message', (topic, message) => {
     const key = TOPICS[topic];
     const val = message.toString();
+    if (topic === RAW_TOPIC) { lastRawAt = Date.now(); updateSystemStatus(); return; }
+    if (key) { lastDataAt = Date.now(); }
     if (key === 'battery') {
       batteryDemoMode = false;
       updateBattery(val);
@@ -885,6 +943,8 @@ try {
   });
 
   mqttClient.on('error', (err) => {
+    mqttUp = false;
+    updateSystemStatus();
     dot.classList.remove('connected');
     lbl.textContent = 'ไม่สามารถเชื่อมต่อได้';
     // แยกกรณี user/password ผิด ออกจากกรณีเน็ตหลุด จะได้ไล่ปัญหาถูกจุด
@@ -895,6 +955,8 @@ try {
   });
 
   mqttClient.on('close', () => {
+    mqttUp = false;
+    updateSystemStatus();
     dot.classList.remove('connected');
     lbl.textContent = 'ขาดการเชื่อมต่อ';
   });
