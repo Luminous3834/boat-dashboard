@@ -1024,8 +1024,11 @@ setTimeout(() => {
         do: (6 + Math.random()*2).toFixed(1),
         ec: (500 + Math.random()*50).toFixed(0)
       };
-      Object.entries(demos).forEach(([k,v]) => { updateSensor(k,v); setLatestValue(k,v); });
+      // ต้องตั้ง demoActive ก่อนวาดค่า ไม่ใช่หลัง มิฉะนั้นรอบแรกจะยังนับเป็น "ค่าจริง"
+      // แล้วไปตั้งสถานะตั้งต้นของเซนเซอร์ด้วยค่าสุ่ม ทำให้ค่าจริงค่าแรกที่เข้ามาหลังจากนั้น
+      // ถูกมองว่า "สถานะเปลี่ยน" แล้วเด้งแจ้งเตือนโดยไม่มีอะไรเปลี่ยนจริง
       setDemoActive(true);
+      Object.entries(demos).forEach(([k,v]) => { updateSensor(k,v); setLatestValue(k,v); });
     }
     if (batteryDemoMode) {
       const label = document.getElementById('battery-label');
