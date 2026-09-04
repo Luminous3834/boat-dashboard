@@ -3,7 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>ระบบเรือตรวจวัดคุณภาพน้ำและเก็บตัวอย่างน้ำ พร้อมรายงานผลแบบเรียลไทม์</title>
+<title>TIL — Technology and Innovation Lab | ระบบเรือตรวจวัดคุณภาพน้ำ</title>
+<meta name="description" content="Technology and Innovation Lab (TIL) — ระบบเรือตรวจวัดคุณภาพน้ำและเก็บตัวอย่างน้ำ พร้อมรายงานผลแบบเรียลไทม์">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/mqtt/4.3.7/mqtt.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <style>
@@ -46,8 +47,9 @@
   .logo { display: flex; align-items: center; gap: 8px; }
   .logo-icon { width: 28px; height: 28px; background: linear-gradient(135deg,#58d4f5,#3fb950); border-radius: 6px; display:flex;align-items:center;justify-content:center; }
   .logo-icon svg { width:16px;height:16px; }
-  .logo-text { font-size: 13px; font-weight: 600; color: var(--text); }
-  .logo-sub { font-size: 11px; color: var(--text-muted); }
+  .logo-text { font-size: 15px; font-weight: 700; color: var(--text); letter-spacing: 1px; line-height: 1.1; }
+  .logo-sub { font-size: 10px; color: var(--text-muted); white-space: nowrap; }
+  .header-title { min-width: 0; }
   .header-title h1 { font-size: 15px; font-weight: 600; }
   .header-title p { font-size: 11px; color: var(--text-muted); }
   .header-right { display: flex; align-items: center; gap: 16px; }
@@ -299,8 +301,8 @@
         </svg>
       </div>
       <div>
-        <div class="logo-text">Node-RED</div>
-        <div class="logo-sub">Water Quality</div>
+        <div class="logo-text">TIL</div>
+        <div class="logo-sub">Technology and Innovation Lab</div>
       </div>
     </div>
     <div class="header-title">
@@ -713,7 +715,16 @@ function advanceChart() {
 }
 
 // ===== MQTT =====
-const BROKER = 'wss://broker.hivemq.com:8884/mqtt';
+// ⚙️ ตั้งค่า Broker ที่เดียวตรงนี้ที่เดียว
+//    ตอนนี้ = broker สาธารณะ (ใครก็เห็นข้อมูล/สั่งปั๊มได้)
+//    พอสมัคร HiveMQ Cloud เสร็จ ให้แก้ 3 บรรทัด host / username / password ข้างล่างนี้พอ
+const MQTT = {
+  host:     'broker.hivemq.com',  // HiveMQ Cloud จะเป็นแบบ xxxxxxxxxxxx.s1.eu.hivemq.cloud
+  port:     8884,                 // 8884 = WebSocket over TLS (ใช้พอร์ตนี้ทั้ง public และ Cloud)
+  username: '',                   // สร้างใน HiveMQ Cloud > Access Management (public broker ปล่อยว่าง)
+  password: ''                    // รหัสของ user นั้น (public broker ปล่อยว่าง)
+};
+const BROKER = `wss://${MQTT.host}:${MQTT.port}/mqtt`;
 const TOPICS = {
   'boat/ph': 'ph',
   'boat/tds': 'tds',
@@ -785,12 +796,19 @@ let mqttClient = null; // ยกออกมานอก try เพื่อใ�
 
 try {
   const clientId = 'dashboard_' + Math.random().toString(16).substr(2, 8);
-  mqttClient = mqtt.connect(BROKER, { clientId, clean: true });
+  mqttClient = mqtt.connect(BROKER, {
+    clientId,
+    clean: true,
+    reconnectPeriod: 3000,
+    connectTimeout: 10000,
+    username: MQTT.username || undefined,
+    password: MQTT.password || undefined
+  });
 
   mqttClient.on('connect', () => {
     dot.classList.add('connected');
     lbl.textContent = 'เชื่อมต่อ MQTT แล้ว';
-    alertDesc.textContent = 'เชื่อมต่อ HiveMQ สำเร็จ';
+    alertDesc.textContent = 'เชื่อมต่อ ' + MQTT.host + ' สำเร็จ';
     document.getElementById('alert-time-4').textContent = genLabel().substr(0,5);
     Object.keys(TOPICS).forEach(t => mqttClient.subscribe(t));
   });
@@ -809,9 +827,14 @@ try {
     }
   });
 
-  mqttClient.on('error', () => {
+  mqttClient.on('error', (err) => {
     dot.classList.remove('connected');
     lbl.textContent = 'ไม่สามารถเชื่อมต่อได้';
+    // แยกกรณี user/password ผิด ออกจากกรณีเน็ตหลุด จะได้ไล่ปัญหาถูกจุด
+    const code = err && (err.code !== undefined ? err.code : null);
+    alertDesc.textContent = (code === 4 || code === 5)
+      ? 'username/password ของ broker ไม่ถูกต้อง'
+      : 'เชื่อมต่อ ' + MQTT.host + ' ไม่ได้';
   });
 
   mqttClient.on('close', () => {
