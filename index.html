@@ -500,7 +500,7 @@
         </div>
         <div class="sensor-unit">pH</div>
         <div class="status-badge badge-ok" id="ph-badge">ปกติ</div>
-        <div class="sensor-range">(6.5 – 8.5)</div>
+        <div class="sensor-range">ปกติ 6.5 – 8.5<br>มาตรฐานผิวดิน 5.0 – 9.0</div>
       </div>
 
       <!-- DO -->
@@ -516,7 +516,7 @@
         </div>
         <div class="sensor-unit">mg/L</div>
         <div class="status-badge badge-good" id="do-badge">ดี</div>
-        <div class="sensor-range">(&gt; 5 mg/L)</div>
+        <div class="sensor-range">ดีมาก ≥ 6 · ดี ≥ 4<br>ประเภทที่ 3 ≥ 4.0 mg/L</div>
       </div>
 
       <!-- EC -->
@@ -532,7 +532,7 @@
         </div>
         <div class="sensor-unit">µS/cm</div>
         <div class="status-badge badge-ok" id="ec-badge">ปกติ</div>
-        <div class="sensor-range">(300–1500)</div>
+        <div class="sensor-range">ปกติ &lt; 1000 µS/cm<br>(= 2 เท่าของเกณฑ์ TDS)</div>
       </div>
 
       <!-- TDS -->
@@ -548,7 +548,7 @@
         </div>
         <div class="sensor-unit">mg/L</div>
         <div class="status-badge badge-ok" id="tds-badge">ปกติ</div>
-        <div class="sensor-range">(&lt; 500 mg/L)</div>
+        <div class="sensor-range">ปกติ &lt; 500 mg/L<br>เกิน 1000 ไม่เหมาะใช้</div>
       </div>
 
     </div>
@@ -713,19 +713,37 @@ function reportStatusChange(key, label, cls, value) {
   if (before === undefined || before === cls) return;  // ค่าแรก หรือสถานะเดิม = เงียบไว้
   const [name, unit] = SENSOR_LABELS[key] || [key, ''];
   const good = (cls === 'badge-ok' || cls === 'badge-good' || cls === 'badge-great');
-  pushAlert(name + ' ' + label, 'ค่าล่าสุด ' + value + (unit ? ' ' + unit : ''), good ? 'ok' : 'warn');
+  const kind = cls === 'badge-danger' ? 'danger' : (good ? 'ok' : 'warn');
+  pushAlert(name + ' ' + label, 'ค่าล่าสุด ' + value + (unit ? ' ' + unit : ''), kind);
 }
 
 function updateSensor(key, value) {
+  // เกณฑ์ตัดสินสถานะ
+  //   pH, DO  อ้างอิง "มาตรฐานคุณภาพน้ำในแหล่งน้ำผิวดิน" (กรมควบคุมมลพิษ)
+  //           เพราะเรือวัดน้ำในแม่น้ำ ไม่ใช่น้ำดื่ม
+  //   TDS     อ้างอิงมาตรฐานน้ำบริโภค กรมอนามัย (ไม่เกิน 500 / เกิน 1000 ไม่เหมาะใช้)
+  //   EC      ไม่มีในมาตรฐานไทย และในระบบนี้ EC = TDS x 2 เสมอ (คำนวณจากค่าเดียวกัน)
+  //           จึงตั้งเกณฑ์เป็น 2 เท่าของ TDS เพื่อไม่ให้การ์ดสองใบขัดแย้งกันเอง
   const configs = {
     ph:    { el: 'ph-val', arc: 'ph-arc', badge: 'ph-badge', min: 0, max: 14,
-             check: v => v>=6.5&&v<=8.5 ? ['ปกติ','badge-ok'] : v<6.5 ? ['กรด','badge-warn'] : ['ด่าง','badge-warn'] },
+             check: v => v < 5.0 ? ['กรดจัด','badge-danger']
+                       : v > 9.0 ? ['ด่างจัด','badge-danger']
+                       : v < 6.5 ? ['ค่อนข้างกรด','badge-warn']
+                       : v > 8.5 ? ['ค่อนข้างด่าง','badge-warn']
+                       : ['ปกติ','badge-ok'] },
     do:    { el: 'do-val', arc: 'do-arc', badge: 'do-badge', min: 0, max: 20,
-             check: v => v>=5 ? ['ดี','badge-good'] : ['ต่ำ','badge-warn'] },
+             check: v => v >= 6 ? ['ดีมาก','badge-good']
+                       : v >= 4 ? ['ดี','badge-ok']
+                       : v >= 2 ? ['พอใช้','badge-warn']
+                       : ['เสื่อมโทรม','badge-danger'] },
     ec:    { el: 'ec-val', arc: 'ec-arc', badge: 'ec-badge', min: 0, max: 2000,
-             check: v => v>=300&&v<=1500 ? ['ปกติ','badge-ok'] : ['ผิดปกติ','badge-warn'] },
+             check: v => v < 1000 ? ['ปกติ','badge-ok']
+                       : v <= 2000 ? ['สูง','badge-warn']
+                       : ['สูงมาก','badge-danger'] },
     tds:   { el: 'tds-val', arc: 'tds-arc', badge: 'tds-badge', min: 0, max: 1000,
-             check: v => v<500 ? ['ปกติ','badge-ok'] : ['สูง','badge-warn'] }
+             check: v => v < 500 ? ['ปกติ','badge-ok']
+                       : v <= 1000 ? ['สูง','badge-warn']
+                       : ['สูงมาก','badge-danger'] }
   };
 
   const cfg = configs[key];
