@@ -204,6 +204,7 @@
   .alert-title { font-size: 11px; font-weight: 600; }
   .alert-desc { font-size: 10px; color: var(--text-muted); margin-top: 1px; }
   .alert-time { font-size: 10px; color: var(--text-muted); white-space: nowrap; }
+  .alert-empty { font-size: 12px; color: var(--text-muted); text-align: center; padding: 26px 12px; line-height: 1.7; }
   .alert-ok { border-color: rgba(63,185,80,.25); }
   .alert-warn { border-color: rgba(255,166,87,.25); }
   .alert-danger { border-color: rgba(255,123,114,.25); }
@@ -569,33 +570,9 @@
       <div class="panel">
         <div class="panel-header">
           <div class="panel-title">🔔 การแจ้งเตือนล่าสุด</div>
-          <span style="font-size:11px;color:var(--ph-color);cursor:pointer">ดูทั้งหมด</span>
         </div>
         <div class="alert-list" id="alert-list">
-          <div class="alert-item alert-ok">
-            <div class="alert-icon">✅</div>
-            <div class="alert-content">
-              <div class="alert-title">คุณภาพน้ำปกติ</div>
-              <div class="alert-desc">ทุกค่าพารามิเตอร์อยู่ในเกณฑ์ปกติ</div>
-            </div>
-            <div class="alert-time" id="alert-time-1">—</div>
-          </div>
-          <div class="alert-item alert-ok">
-            <div class="alert-icon">✅</div>
-            <div class="alert-content">
-              <div class="alert-title">บันทึกข้อมูลสำเร็จ</div>
-              <div class="alert-desc">บันทึกข้อมูลเรียบร้อย</div>
-            </div>
-            <div class="alert-time" id="alert-time-3">—</div>
-          </div>
-          <div class="alert-item alert-danger">
-            <div class="alert-icon">🚨</div>
-            <div class="alert-content">
-              <div class="alert-title">เชื่อมต่อ MQTT</div>
-              <div class="alert-desc" id="mqtt-alert-desc">กำลังเชื่อมต่อ broker...</div>
-            </div>
-            <div class="alert-time" id="alert-time-4">—</div>
-          </div>
+          <div class="alert-empty" id="alert-empty">ยังไม่มีการแจ้งเตือน<br>รายการจะขึ้นเมื่อมีเหตุการณ์เกิดขึ้นจริง</div>
         </div>
       </div>
 
@@ -667,12 +644,6 @@ function updateClock() {
   const months = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
   document.getElementById('header-date').textContent = `${now.getDate()} ${months[now.getMonth()]} ${now.getFullYear()+543}`;
 
-  const t1 = new Date(now - 60*60000);
-  const t2 = new Date(now - 90*60000);
-  const fmt = d => `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
-  document.getElementById('alert-time-1').textContent = fmt(now);
-  document.getElementById('alert-time-3').textContent = fmt(t1);
-  document.getElementById('alert-time-4').textContent = fmt(t2);
 }
 setInterval(updateClock, 1000);
 updateClock();
@@ -732,6 +703,19 @@ function setGauge(id, value, min, max) {
   arc.style.strokeDashoffset = total * (1 - pct);
 }
 
+// แจ้งเตือนเฉพาะตอน "สถานะเปลี่ยน" ไม่ใช่ทุกครั้งที่ค่าเข้ามา (ค่าเข้ามาทุก 2 วินาที)
+const SENSOR_LABELS = { ph: ['pH',''], do: ['DO','mg/L'], ec: ['EC','µS/cm'], tds: ['TDS','mg/L'] };
+const prevStatus = {};
+function reportStatusChange(key, label, cls, value) {
+  if (demoActive) return;                              // ค่าจำลอง ไม่ควรสร้างการแจ้งเตือน
+  const before = prevStatus[key];
+  prevStatus[key] = cls;
+  if (before === undefined || before === cls) return;  // ค่าแรก หรือสถานะเดิม = เงียบไว้
+  const [name, unit] = SENSOR_LABELS[key] || [key, ''];
+  const good = (cls === 'badge-ok' || cls === 'badge-good' || cls === 'badge-great');
+  pushAlert(name + ' ' + label, 'ค่าล่าสุด ' + value + (unit ? ' ' + unit : ''), good ? 'ok' : 'warn');
+}
+
 function updateSensor(key, value) {
   const configs = {
     ph:    { el: 'ph-val', arc: 'ph-arc', badge: 'ph-badge', min: 0, max: 14,
@@ -756,6 +740,7 @@ function updateSensor(key, value) {
   const [label, cls] = cfg.check(parseFloat(value));
   const badge = document.getElementById(cfg.badge);
   if (badge) { badge.textContent = label; badge.className = 'status-badge ' + cls; }
+  reportStatusChange(key, label, cls, value);
 }
 
 // เก็บ "ค่าล่าสุด" ของแต่ละเซนเซอร์ไว้เฉยๆ ไม่ไปยุ่งกับ array ของกราฟโดยตรง
@@ -927,7 +912,7 @@ setInterval(updateSystemStatus, 1000);
 
 const dot = document.getElementById('mqtt-dot');
 const lbl = document.getElementById('mqtt-label');
-const alertDesc = document.getElementById('mqtt-alert-desc');
+let wasConnected = false;   // ใช้กันไม่ให้ event 'close' ตอนพยายามต่อใหม่ ยิงแจ้งเตือนรัว ๆ
 
 let mqttClient = null; // ยกออกมานอก try เพื่อให้ปุ่มปั๊มเรียกใช้ publish() ได้
 
@@ -945,8 +930,8 @@ try {
   mqttClient.on('connect', () => {
     dot.classList.add('connected');
     lbl.textContent = 'เชื่อมต่อ MQTT แล้ว';
-    alertDesc.textContent = 'เชื่อมต่อ ' + MQTT.host + ' สำเร็จ';
-    document.getElementById('alert-time-4').textContent = genLabel().substr(0,5);
+    pushAlert('เชื่อมต่อ MQTT สำเร็จ', MQTT.host, 'ok');
+    wasConnected = true;
     Object.keys(TOPICS).forEach(t => mqttClient.subscribe(t));
     mqttClient.subscribe(RAW_TOPIC);   // ค่าดิบจากบอร์ด ใช้ดูว่าเรือยังส่งอยู่ไหม
     mqttUp = true;
@@ -977,9 +962,9 @@ try {
     lbl.textContent = 'ไม่สามารถเชื่อมต่อได้';
     // แยกกรณี user/password ผิด ออกจากกรณีเน็ตหลุด จะได้ไล่ปัญหาถูกจุด
     const code = err && (err.code !== undefined ? err.code : null);
-    alertDesc.textContent = (code === 4 || code === 5)
-      ? 'username/password ของ broker ไม่ถูกต้อง'
-      : 'เชื่อมต่อ ' + MQTT.host + ' ไม่ได้';
+    pushAlert('เชื่อมต่อ MQTT ไม่สำเร็จ',
+      (code === 4 || code === 5) ? 'username/password ของ broker ไม่ถูกต้อง' : MQTT.host,
+      'danger');
   });
 
   mqttClient.on('close', () => {
@@ -987,6 +972,7 @@ try {
     updateSystemStatus();
     dot.classList.remove('connected');
     lbl.textContent = 'ขาดการเชื่อมต่อ';
+    if (wasConnected) { pushAlert('ขาดการเชื่อมต่อ MQTT', MQTT.host, 'warn'); wasConnected = false; }
   });
 } catch(e) {
   lbl.textContent = 'โหลด MQTT ไม่ได้';
@@ -1038,21 +1024,49 @@ const PUMP_TOPICS = { intake: 'boat/pump/intake', discharge: 'boat/pump/discharg
 const PUMP_LABELS = { intake: '⬇️ ดูดน้ำเข้า', discharge: '⬆️ ดูดน้ำออก' };
 let pumpBusy = false;
 
-function addPumpAlert(text, ok = true) {
+// ===== บันทึกเหตุการณ์จริง =====
+// เดิมกล่องนี้มีการแจ้งเตือนเขียนตายตัว 3 อัน (เช่น "คุณภาพน้ำปกติ") ที่ไม่เคย
+// เกิดขึ้นจริง แถมเวลายังเดินตามนาฬิกาให้ดูเหมือนเพิ่งเกิด ตรงนี้เปลี่ยนให้ขึ้น
+// เฉพาะเหตุการณ์ที่เกิดจริงเท่านั้น
+const MAX_ALERTS = 30;
+const ALERT_ICONS = { ok: '✅', warn: '⚠️', danger: '🚨' };
+
+function pushAlert(title, desc, kind = 'ok') {
   const list = document.getElementById('alert-list');
   if (!list) return;
-  const item = document.createElement('div');
-  item.className = 'alert-item ' + (ok ? 'alert-ok' : 'alert-warn');
+  const empty = document.getElementById('alert-empty');
+  if (empty) empty.remove();
+
   const now = new Date();
-  const time = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
-  item.innerHTML = `
-    <div class="alert-icon">${ok ? '✅' : '⚠️'}</div>
-    <div class="alert-content">
-      <div class="alert-title">${text}</div>
-      <div class="alert-desc">สั่งงานผ่านแดชบอร์ด</div>
-    </div>
-    <div class="alert-time">${time}</div>`;
+  const item = document.createElement('div');
+  item.className = 'alert-item alert-' + kind;
+
+  // สร้างด้วย DOM ไม่ใช่ innerHTML เพื่อไม่ให้ข้อความไปตีความเป็น HTML
+  const icon = document.createElement('div');
+  icon.className = 'alert-icon';
+  icon.textContent = ALERT_ICONS[kind] || ALERT_ICONS.ok;
+
+  const content = document.createElement('div');
+  content.className = 'alert-content';
+  const t = document.createElement('div');
+  t.className = 'alert-title';
+  t.textContent = title;
+  const d = document.createElement('div');
+  d.className = 'alert-desc';
+  d.textContent = desc;
+  content.append(t, d);
+
+  const time = document.createElement('div');
+  time.className = 'alert-time';
+  time.textContent = String(now.getHours()).padStart(2,'0') + ':' + String(now.getMinutes()).padStart(2,'0');
+
+  item.append(icon, content, time);
   list.prepend(item);
+  while (list.children.length > MAX_ALERTS) list.lastElementChild.remove();
+}
+
+function addPumpAlert(text, ok = true) {
+  pushAlert(text, 'สั่งงานผ่านแดชบอร์ด', ok ? 'ok' : 'warn');
 }
 
 function pumpCommand(action) {
@@ -1158,7 +1172,7 @@ function saveRecord() {
     btn.classList.add('saved');
     setTimeout(() => { btn.textContent = original; btn.classList.remove('saved'); }, 1500);
   }
-  addPumpAlert('บันทึกค่าลงตารางสำเร็จ');
+  pushAlert('บันทึกค่าลงตาราง', 'บันทึกค่า pH, DO, EC, TDS ณ เวลานี้', 'ok');
 }
 
 function deleteRecord(id) {
