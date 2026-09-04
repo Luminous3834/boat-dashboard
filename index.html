@@ -225,6 +225,24 @@
   }
   .conn-notice.show { display: block; }
 
+  /* แถบเตือนข้อมูลจำลอง — ต้องเห็นชัดจนไม่มีทางเข้าใจผิดว่าเป็นค่าจริง */
+  .demo-banner {
+    display: none;
+    align-items: center; gap: 12px;
+    background: rgba(255,166,87,.10);
+    border: 1px solid rgba(255,166,87,.45);
+    border-left: 4px solid #ffa657;
+    border-radius: var(--radius);
+    padding: 10px 14px;
+  }
+  .demo-banner.show { display: flex; }
+  .demo-dot { width: 8px; height: 8px; border-radius: 50%; background: #ffa657; animation: pulse 1.5s infinite; flex: none; }
+  .demo-title { font-size: 13px; font-weight: 700; color: #ffa657; }
+  .demo-desc  { font-size: 11px; color: var(--text-muted); margin-top: 1px; }
+  /* การ์ดที่กำลังโชว์ค่าจำลอง ให้ดูต่างจากค่าจริงตั้งแต่แรกเห็น */
+  .sensor-grid.is-demo .sensor-card { border-style: dashed; border-color: rgba(255,166,87,.35); }
+  .sensor-grid.is-demo .gauge-value { opacity: .6; }
+
   /* PUMP CONTROL */
   .pump-control {
     background: var(--surface2); border: 1px solid var(--border);
@@ -456,8 +474,17 @@
       </div>
     </div>
 
+    <!-- แถบเตือนข้อมูลจำลอง -->
+    <div class="demo-banner" id="demo-banner">
+      <span class="demo-dot"></span>
+      <div>
+        <div class="demo-title">ข้อมูลจำลอง — ยังไม่ได้เชื่อมต่อกับเรือจริง</div>
+        <div class="demo-desc">ตัวเลขและกราฟด้านล่างเป็นค่าสุ่มสำหรับสาธิตหน้าจอเท่านั้น ไม่ใช่ค่าที่วัดได้จริง</div>
+      </div>
+    </div>
+
     <!-- SENSOR CARDS -->
-    <div class="sensor-grid">
+    <div class="sensor-grid" id="sensor-grid">
 
       <!-- pH -->
       <div class="sensor-card ph">
@@ -531,7 +558,7 @@
       <!-- CHART -->
       <div class="panel">
         <div class="panel-header">
-          <div class="panel-title">📈 กราฟแนวโน้มคุณภาพน้ำ (Trend)</div>
+          <div class="panel-title" id="chart-title">📈 กราฟแนวโน้มคุณภาพน้ำ (Trend)</div>
         </div>
         <div class="chart-container">
           <canvas id="trendChart"></canvas>
@@ -936,6 +963,7 @@ try {
       updateBattery(val);
     } else if (key) {
       demoMode = false;
+      setDemoActive(false);   // มีค่าจริงแล้ว เลิกโหมดจำลอง
       updateBoatStatus(true);
       updateSensor(key, val);
       setLatestValue(key, val);
@@ -967,6 +995,22 @@ try {
 // Simulate data if no real MQTT ever arrives (demo mode)
 let demoMode = true;
 let batteryDemoMode = true;
+
+// demoActive = "ตอนนี้กำลังวาดค่าสุ่มอยู่จริง ๆ" ซึ่งไม่เท่ากับ demoMode
+// (4 วินาทีแรก demoMode ยังเป็น true แต่ยังไม่มีการวาดค่าปลอม การ์ดยังขึ้น — ตามปกติ)
+let demoActive = false;
+function setDemoActive(on) {
+  if (demoActive === on) return;
+  demoActive = on;
+  const b = document.getElementById('demo-banner');
+  if (b) b.classList.toggle('show', on);
+  const g = document.getElementById('sensor-grid');
+  if (g) g.classList.toggle('is-demo', on);
+  const t = document.getElementById('chart-title');
+  if (t) t.textContent = on
+    ? '📈 กราฟแนวโน้มคุณภาพน้ำ (ข้อมูลจำลอง)'
+    : '📈 กราฟแนวโน้มคุณภาพน้ำ (Trend)';
+}
 setTimeout(() => {
   setInterval(() => {
     if (demoMode) {
@@ -977,6 +1021,7 @@ setTimeout(() => {
         ec: (500 + Math.random()*50).toFixed(0)
       };
       Object.entries(demos).forEach(([k,v]) => { updateSensor(k,v); setLatestValue(k,v); });
+      setDemoActive(true);
     }
     if (batteryDemoMode) {
       const label = document.getElementById('battery-label');
