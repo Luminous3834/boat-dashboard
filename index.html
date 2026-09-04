@@ -303,7 +303,8 @@
   @media (max-width: 820px) {
     /* header สูงคงที่ 56px ไม่พอแล้ว ปล่อยให้ขึ้นบรรทัดที่สองได้ */
     .header { height: auto; padding: 8px 12px; flex-wrap: wrap; gap: 8px 12px; }
-    .header-left { gap: 10px; }
+    /* .header-title เป็นลูกของ .header-left ต้องเปิด wrap ตรงนี้ order/flex-basis ถึงจะมีผล */
+    .header-left { gap: 10px; flex-wrap: wrap; flex: 1; }
     .header-title { order: 3; flex-basis: 100%; }  /* ดันชื่อโปรเจกต์ลงไปเป็นแถวล่าง */
     .header-title h1 { font-size: 13px; }
     .header-right { gap: 12px; margin-left: auto; }
