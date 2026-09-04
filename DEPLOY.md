@@ -84,7 +84,10 @@ const MQTT = {
 4. Save and Deploy → ได้ URL `boat-dashboard.pages.dev` ทันที
 5. ต่อจากนี้ `git push` ทุกครั้ง Cloudflare จะ deploy ให้เองอัตโนมัติ
 
-### 2.1 ใส่โดเมนของตัวเอง
+### 2.1 ใส่โดเมนของตัวเอง *(ยังไม่ทำตอนนี้ — ใช้ `*.pages.dev` ฟรีไปก่อน)*
+
+`til-dashboard.pages.dev` ใช้งานได้เต็มรูปแบบและมี HTTPS ให้อยู่แล้ว
+ค่อยกลับมาทำหัวข้อนี้ตอนอยากได้ชื่อสั้น ๆ ของตัวเอง — ผูกทีหลังได้ ไม่ต้องย้ายอะไร
 1. ซื้อโดเมนที่ Cloudflare Registrar (ขายราคาทุน ไม่บวกกำไร) หรือที่อื่นก็ได้
 2. ใน Pages project → **Custom domains** → Set up a custom domain → พิมพ์โดเมน
 3. ถ้าโดเมนอยู่ใน Cloudflare อยู่แล้ว มันจะตั้ง DNS + ออก HTTPS ให้อัตโนมัติภายในไม่กี่นาที
