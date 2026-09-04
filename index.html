@@ -183,13 +183,6 @@
     display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;
   }
   .panel-title { font-size: 13px; font-weight: 600; }
-  .time-tabs { display: flex; gap: 4px; }
-  .time-tab {
-    font-size: 10px; padding: 3px 8px; border-radius: 6px; cursor: pointer;
-    background: transparent; border: 1px solid transparent; color: var(--text-muted);
-    transition: all .15s;
-  }
-  .time-tab.active { background: rgba(88,212,245,.15); border-color: rgba(88,212,245,.4); color: var(--ph-color); }
   .chart-container { flex: 1; position: relative; min-height: 160px; }
 
   /* ALERTS */
@@ -532,12 +525,6 @@
       <div class="panel">
         <div class="panel-header">
           <div class="panel-title">📈 กราฟแนวโน้มคุณภาพน้ำ (Trend)</div>
-          <div class="time-tabs">
-            <div class="time-tab active">1 ชั่วโมง</div>
-            <div class="time-tab">6 ชั่วโมง</div>
-            <div class="time-tab">24 ชั่วโมง</div>
-            <div class="time-tab">7 วัน</div>
-          </div>
         </div>
         <div class="chart-container">
           <canvas id="trendChart"></canvas>
@@ -1118,13 +1105,6 @@ function exportRecordsCSV() {
 
 loadRecords();
 
-// time tabs
-document.querySelectorAll('.time-tab').forEach(tab => {
-  tab.addEventListener('click', () => {
-    document.querySelectorAll('.time-tab').forEach(t => t.classList.remove('active'));
-    tab.classList.add('active');
-  });
-});
 </script>
 </body>
 </html>
