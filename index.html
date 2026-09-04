@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>TIL — Technology and Innovation Lab | ระบบเรือตรวจวัดคุณภาพน้ำ</title>
+<title>Technology and Innovation Lab (TIL) | ระบบเรือตรวจวัดคุณภาพน้ำ</title>
 <meta name="description" content="Technology and Innovation Lab (TIL) — ระบบเรือตรวจวัดคุณภาพน้ำและเก็บตัวอย่างน้ำ พร้อมรายงานผลแบบเรียลไทม์">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/mqtt/4.3.7/mqtt.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
@@ -47,8 +47,8 @@
   .logo { display: flex; align-items: center; gap: 8px; }
   .logo-icon { width: 28px; height: 28px; background: linear-gradient(135deg,#58d4f5,#3fb950); border-radius: 6px; display:flex;align-items:center;justify-content:center; }
   .logo-icon svg { width:16px;height:16px; }
-  .logo-text { font-size: 15px; font-weight: 700; color: var(--text); letter-spacing: 1px; line-height: 1.1; }
-  .logo-sub { font-size: 10px; color: var(--text-muted); white-space: nowrap; }
+  .logo-text { font-size: 13px; font-weight: 700; color: var(--text); letter-spacing: .2px; line-height: 1.15; white-space: nowrap; }
+  .logo-sub { font-size: 10px; color: var(--text-muted); letter-spacing: 1.5px; }
   .header-title { min-width: 0; }
   .header-title h1 { font-size: 15px; font-weight: 600; }
   .header-title p { font-size: 11px; color: var(--text-muted); }
@@ -284,6 +284,70 @@
   }
   .btn-del-record:hover { background: rgba(255,123,114,.12); }
   .mini-badge { font-size: 9px; padding: 1px 6px; margin-left: 4px; white-space: nowrap; }
+
+  /* ==========================================================================
+     RESPONSIVE — เดิมหน้านี้ไม่มี @media เลย เปิดบนมือถือแล้ว layout แตก
+     เบรกพอยต์: 1100px = โน้ตบุ๊กจอเล็ก/แท็บเล็ตแนวนอน
+                 820px = แท็บเล็ตแนวตั้ง/มือถือ (sidebar ย้ายขึ้นบน)
+                 520px = มือถือจอแคบ
+     ========================================================================== */
+
+  @media (max-width: 1100px) {
+    .header-title p { display: none; }           /* ซ่อนชื่อภาษาอังกฤษ เก็บชื่อไทยไว้ */
+    .sensor-grid { grid-template-columns: repeat(2, 1fr); }
+    .bottom-grid { grid-template-columns: 1fr; } /* กราฟกับการแจ้งเตือนวางซ้อนกันแทน */
+    .chart-container { min-height: 260px; }      /* พอ bottom-grid เป็น 1 คอลัมน์ flex:1 หมดผล ต้องกำหนดสูงเอง */
+    .alert-list { max-height: none; }
+  }
+
+  @media (max-width: 820px) {
+    /* header สูงคงที่ 56px ไม่พอแล้ว ปล่อยให้ขึ้นบรรทัดที่สองได้ */
+    .header { height: auto; padding: 8px 12px; flex-wrap: wrap; gap: 8px 12px; }
+    .header-left { gap: 10px; }
+    .header-title { order: 3; flex-basis: 100%; }  /* ดันชื่อโปรเจกต์ลงไปเป็นแถวล่าง */
+    .header-title h1 { font-size: 13px; }
+    .header-right { gap: 12px; margin-left: auto; }
+
+    /* sidebar: จากแถบซ้าย 200px -> แถบบนเต็มความกว้าง */
+    .layout { flex-direction: column; height: auto; }
+    .main { overflow-y: visible; padding: 12px; }
+    .sidebar {
+      width: 100%; min-width: 0; padding: 0;
+      flex-direction: row; flex-wrap: wrap;
+      border-right: none; border-bottom: 1px solid var(--border);
+    }
+    .nav-item {
+      flex: 1; justify-content: center; padding: 12px 10px;
+      border-left: none; border-bottom: 3px solid transparent;
+    }
+    .nav-item.active { border-left-color: transparent; border-bottom-color: var(--ph-color); }
+    /* ปุ่มปั๊มกับสถานะเรือ ต้องไม่หายไปตอน sidebar เป็นแนวนอน */
+    .sidebar-footer {
+      flex-basis: 100%; margin-top: 0; padding: 12px;
+      border-top: 1px solid var(--border);
+      display: grid; grid-template-columns: 1fr 1fr; gap: 12px; align-items: start;
+    }
+    .pump-control { margin-bottom: 0; }
+
+    .info-bar { grid-template-columns: 1fr 1fr; }
+    .info-bar .info-card:first-child { grid-column: 1 / -1; }  /* การ์ดเลือกสถานีกินเต็มแถว */
+
+    .panel-header { flex-wrap: wrap; gap: 8px; }
+    .save-row { flex-direction: column; align-items: stretch; }
+    .btn-save { width: 100%; }
+  }
+
+  @media (max-width: 520px) {
+    .logo-text { font-size: 11px; white-space: normal; }  /* ชื่อเต็มยาว ปล่อยให้ตัดบรรทัดได้ */
+    .logo-sub { font-size: 9px; }
+    .header-title h1 { font-size: 12px; }
+    .header-stat .lbl { display: none; }
+    .sidebar-footer { grid-template-columns: 1fr; }
+    .sensor-grid { gap: 8px; }
+    .sensor-card { padding: 10px 6px; }
+    .chart-container { min-height: 220px; }
+  }
+
 </style>
 </head>
 <body>
@@ -301,8 +365,8 @@
         </svg>
       </div>
       <div>
-        <div class="logo-text">TIL</div>
-        <div class="logo-sub">Technology and Innovation Lab</div>
+        <div class="logo-text">Technology and Innovation Lab</div>
+        <div class="logo-sub">TIL</div>
       </div>
     </div>
     <div class="header-title">
